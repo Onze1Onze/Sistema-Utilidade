@@ -1,24 +1,73 @@
-import OBR from "https://esm.sh/@owlbear-rodeo/sdk@3.1.0";
-import { META_KEY, CHANNEL, SECRET_PREFIX, LOCK_PRESETS, HACK_PRESETS, makeHackPuzzle, normalizePin, createSessionId } from "./game-logic.js";
+// A interface não depende da rede para aparecer. O SDK é carregado em segundo plano.
+let OBR = null;
+let sdkReady = false;
+let sdkError = null;
+const META_KEY = "com.onze11.sistema-utilidade/session";
+const CHANNEL = "com.onze11.sistema-utilidade/v1";
+const SECRET_PREFIX = "com.onze11.sistema-utilidade/secret/";
+const LOCK_PRESETS = {
+  1: { tolerance: 34, picks: 7 },
+  2: { tolerance: 26, picks: 6 },
+  3: { tolerance: 19, picks: 5 },
+  4: { tolerance: 12, picks: 4 },
+  5: { tolerance: 7, picks: 3 }
+};
+const HACK_PRESETS = {
+  1: { rows: 4, columns: 6, sequenceLength: 3 },
+  2: { rows: 5, columns: 6, sequenceLength: 3 },
+  3: { rows: 5, columns: 7, sequenceLength: 4 },
+  4: { rows: 6, columns: 8, sequenceLength: 5 },
+  5: { rows: 6, columns: 8, sequenceLength: 6 }
+};
+function randomHex(random = Math.random) {
+  return Math.floor(random() * 256).toString(16).padStart(2, "0").toUpperCase();
+}
+function clampInteger(value, min, max, fallback) {
+  const parsed = Number.parseInt(value, 10);
+  return Number.isFinite(parsed) ? Math.min(max, Math.max(min, parsed)) : fallback;
+}
+function normalizePin(value) {
+  return String(value ?? "").replace(/\\D/g, "").slice(0, 8);
+}
+function createSessionId(random = Math.random) {
+  return Array.from({length:16}, () => Math.floor(random()*256).toString(16).padStart(2,"0")).join("");
+}
+function makeHackPuzzle(config, random = Math.random) {
+  const rows = clampInteger(config.rows,4,8,6);
+  const columns = clampInteger(config.columns,4,8,8);
+  const length = clampInteger(config.sequenceLength,3,Math.min(6,rows+columns-1),4);
+  const board = Array.from({length:rows},()=>Array.from({length:columns},()=>randomHex(random)));
+  const starts=[];
+  for(let r=0;r<rows;r++) for(let c=0;c<columns;c++) starts.push([r,c]);
+  for(let i=starts.length-1;i>0;i--){const j=Math.floor(random()*(i+1));[starts[i],starts[j]]=[starts[j],starts[i]];}
+  function find(path){
+    if(path.length===length) return path;
+    const [pr,pc]=path[path.length-1];
+    const choices=[];
+    if(path.length%2===1){
+      for(let r=0;r<rows;r++) if(r!==pr&&!path.some(([ur,uc])=>ur===r&&uc===pc)) choices.push([r,pc]);
+    }else{
+      for(let c=0;c<columns;c++) if(c!==pc&&!path.some(([ur,uc])=>ur===pr&&uc===c)) choices.push([pr,c]);
+    }
+    for(let i=choices.length-1;i>0;i--){const j=Math.floor(random()*(i+1));[choices[i],choices[j]]=[choices[j],choices[i]];}
+    for(const choice of choices){const found=find([...path,choice]);if(found)return found;}
+    return null;
+  }
+  let path=null;
+  for(const start of starts){path=find([start]);if(path)break;}
+  if(!path) throw new Error("Não foi possível gerar uma matriz solucionável.");
+  const target=Array.from({length},()=>randomHex(random));
+  path.forEach(([r,c],i)=>{board[r][c]=target[i];});
+  return {rows,columns,sequenceLength:length,board,target};
+}
 
 const root = document.querySelector("#app");
-const state = { role: "PLAYER", session: null, mode: "lock", collapsed: false, advanced: false, tolerance: 19, picks: 5, rows: 5, columns: 7, length: 4, pin: "", angle: 0, path: [], pinInput: "", waiting: false, result: null, picksLeft: 0 };
+const state = { role: "GM", session: null, mode: "lock", collapsed: false, advanced: false, tolerance: 19, picks: 5, rows: 5, columns: 7, length: 4, pin: "", angle: 0, path: [], pinInput: "", waiting: false, result: null, picksLeft: 0 };
 let connectionId = "";
 let timeout = null;
 const WAIT_MS = 10000;
 
-OBR.onReady(async () => {
-  try {
-    state.role = await OBR.player.getRole();
-    connectionId = await OBR.player.getConnectionId();
-    OBR.room.onMetadataChange((metadata) => acceptSession(metadata?.[META_KEY] ?? null));
-    OBR.broadcast.onMessage(CHANNEL, onMessage);
-    acceptSession((await OBR.room.getMetadata())?.[META_KEY] ?? null);
-  } catch (error) {
-    console.error(error);
-    root.textContent = "Não foi possível conectar ao Owlbear Rodeo.";
-  }
-});
+// A inicialização antiga é substituída por bootOwlbear(), chamado depois de renderizar.
 
 function acceptSession(session) {
   if (JSON.stringify(session) === JSON.stringify(state.session)) return;
@@ -34,7 +83,7 @@ function acceptSession(session) {
 function shell(content) {
   return '<section class="frame"><header class="top"><span class="mark"></span><span>INTERFACE DE CONTROLE</span><span class="lights">▰ ▰ ▰ ▰</span></header><div class="workspace"><aside class="sidebar ' + (state.collapsed ? "small" : "") + '"><button class="collapse" data-action="collapse" aria-label="Recolher menu">' + (state.collapsed ? "»" : "«") + '</button>' +
     nav("lock", "♙", "Abrir Fechadura") + nav("hack", "⌘", "Hacking") + nav("pin", "▦", "Painel Numérico") +
-    '</aside><main class="content"><div class="content-inner">' + content + '</div></main></div><footer>◉  Interagir <span>ESC  Fechar</span></footer></section>';
+    '</aside><main class="content"><div class="content-inner">' + noticeMarkup() + content + '</div></main></div><footer>◉  Interagir <span>ESC  Fechar</span></footer></section>';
 }
 function nav(mode, symbol, label) {
   return '<button class="nav ' + (state.mode === mode ? "active" : "") + '" data-mode="' + mode + '"><b>' + symbol + '</b><span>' + label + '</span><i>›</i></button>';
@@ -48,7 +97,7 @@ function render() {
   root.innerHTML = playerShell(playerGame());
 }
 function playerShell(content) {
-  return '<section class="frame player-frame"><header class="top"><span class="mark"></span><span>TERMINAL DE ACESSO</span><span class="lights">▰ ▰ ▰ ▰</span></header><main class="player-content"><div class="content-inner">' + content + '</div></main><footer>ESC  Fechar</footer></section>';
+  return '<section class="frame player-frame"><header class="top"><span class="mark"></span><span>TERMINAL DE ACESSO</span><span class="lights">▰ ▰ ▰ ▰</span></header><main class="player-content"><div class="content-inner">' + noticeMarkup() + content + '</div></main><footer>ESC  Fechar</footer></section>';
 }
 function validPublicSession(session) {
   if (!session || session.status !== "active" || typeof session.sessionId !== "string") return false;
@@ -129,11 +178,18 @@ function canSelect(row, col) {
   const [r,c] = state.path[state.path.length - 1];
   return state.path.length % 2 === 1 ? col === c && row !== r : row === r && col !== c;
 }
+function noticeMarkup() {
+  return state.notice ? '<div class="ui-notice" role="status">' + escapeHTML(state.notice) + '</div>' : '';
+}
+function showNotice(message) {
+  state.notice = String(message || "Não foi possível concluir a operação.");
+  render();
+}
 function escapeHTML(value) { return String(value).replace(/[&<>"']/g, (c) => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
 
 window.addEventListener("keydown", (event) => {
   if (event.key === "Escape") {
-    OBR.action.close().catch((error) => console.warn("Não foi possível fechar a extensão:", error));
+    OBR?.action?.close?.().catch((error) => console.warn("Não foi possível fechar a extensão:", error));
   }
 });
 
@@ -188,15 +244,17 @@ async function publish() {
     try { await OBR.room.setMetadata({[META_KEY]:{status:"active",sessionId,game,publicConfig,createdAt:Date.now()}}); }
     catch(error){localStorage.removeItem(SECRET_PREFIX+sessionId);throw error;}
     OBR.notification.show("Minijogo liberado para os jogadores","SUCCESS");
-  } catch(error) { OBR.notification.show(error.message || "Não foi possível publicar o desafio.","ERROR"); }
+  } catch(error) { showNotice(error.message || "Não foi possível publicar o desafio."); OBR?.notification?.show?.(error.message || "Não foi possível publicar o desafio.","ERROR"); }
 }
 async function endSession() {
+  if (!sdkReady || !OBR) { showNotice("Conectando ao Owlbear Rodeo. Tente novamente em instantes."); return; }
   const id=state.session?.sessionId;
   await OBR.room.setMetadata({[META_KEY]:{status:"idle",sessionId:null,endedAt:Date.now()}});
   if(id) localStorage.removeItem(SECRET_PREFIX+id);
   OBR.notification.show("Minijogo encerrado","INFO");
 }
 async function sendAttempt(attempt) {
+  if (!sdkReady || !OBR) { state.result={success:false,responseText:"Conexão com o Owlbear indisponível. Reabra a extensão.",finished:false}; render(); return; }
   if(state.waiting || state.result?.finished) return;
   state.waiting=true; state.result=null; render();
   clearTimeout(timeout);
@@ -212,3 +270,53 @@ async function onMessage(event) {
   if(message.remaining!==null && message.remaining!==undefined) state.picksLeft=message.remaining;
   render();
 }
+
+async function bootOwlbear() {
+  const urls = [
+    "https://cdn.jsdelivr.net/npm/@owlbear-rodeo/sdk@3.1.0/+esm",
+    "https://esm.sh/@owlbear-rodeo/sdk@3.1.0?bundle"
+  ];
+  let sdkModule = null;
+  let lastError = null;
+  for (const url of urls) {
+    try {
+      sdkModule = await Promise.race([
+        import(url),
+        new Promise((_, reject) => setTimeout(() => reject(new Error("Tempo esgotado ao carregar o SDK.")), 12000))
+      ]);
+      if (sdkModule?.default?.onReady) break;
+      sdkModule = null;
+      throw new Error("O arquivo carregado não exportou a API OBR.");
+    } catch (error) {
+      lastError = error;
+      console.warn("[Sistema de Fechaduras] Falha no provedor de SDK:", url, error);
+    }
+  }
+  if (!sdkModule?.default) throw lastError || new Error("SDK não encontrado.");
+  OBR = sdkModule.default;
+  await Promise.race([
+    new Promise((resolve, reject) => {
+      const timer = setTimeout(() => reject(new Error("O Owlbear não respondeu à inicialização do SDK.")), 10000);
+      OBR.onReady(() => { clearTimeout(timer); resolve(); });
+      if (OBR.isReady) { clearTimeout(timer); resolve(); }
+    })
+  ]);
+  if (OBR.isAvailable === false) throw new Error("Abra esta extensão dentro de uma sala do Owlbear Rodeo.");
+  state.role = await OBR.player.getRole();
+  connectionId = await OBR.player.getConnectionId();
+  sdkReady = true;
+  sdkError = null;
+  OBR.room.onMetadataChange((metadata) => acceptSession(metadata?.[META_KEY] ?? null));
+  OBR.broadcast.onMessage(CHANNEL, onMessage);
+  acceptSession((await OBR.room.getMetadata())?.[META_KEY] ?? null);
+  state.notice = "";
+  render();
+}
+
+render();
+bootOwlbear().catch((error) => {
+  sdkError = error;
+  sdkReady = false;
+  console.error("[Sistema de Fechaduras] SDK indisponível:", error);
+  showNotice("Interface aberta, mas sem conexão ao Owlbear. Feche e reabra a extensão. Detalhe: " + (error?.message || "falha de inicialização"));
+});
