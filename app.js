@@ -67,6 +67,18 @@ let connectionId = "";
 let timeout = null;
 const WAIT_MS = 10000;
 
+async function importModuleWithTimeout(url, milliseconds = 12000) {
+  let timer;
+  try {
+    return await Promise.race([
+      import(url),
+      new Promise((_, reject) => { timer = setTimeout(() => reject(new Error("Tempo esgotado ao carregar o SDK.")), milliseconds); })
+    ]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 // A inicialização antiga é substituída por bootOwlbear(), chamado depois de renderizar.
 
 function acceptSession(session) {
@@ -281,10 +293,7 @@ async function bootOwlbear() {
   let lastError = null;
   for (const url of urls) {
     try {
-      sdkModule = await Promise.race([
-        import(url),
-        new Promise((_, reject) => setTimeout(() => reject(new Error("Tempo esgotado ao carregar o SDK.")), 12000))
-      ]);
+      sdkModule = await importModuleWithTimeout(url);
       if (sdkModule?.default?.onReady) break;
       sdkModule = null;
       throw new Error("O arquivo carregado não exportou a API OBR.");
