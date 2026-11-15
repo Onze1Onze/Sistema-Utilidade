@@ -55,8 +55,26 @@ function render() {
     root.innerHTML = shell(state.session?.status === "active" ? masterActive() : masterConfig());
     return;
   }
-  if (!state.session || state.session.status !== "active") { root.innerHTML = ""; return; }
-  root.innerHTML = shell(playerGame());
+  if (!validPublicSession(state.session)) { root.innerHTML = ""; return; }
+  root.innerHTML = playerShell(playerGame());
+}
+function playerShell(content) {
+  return '<section class="frame player-frame"><header class="top"><span class="mark"></span><span>TERMINAL DE ACESSO</span><span class="lights">▰ ▰ ▰ ▰</span></header><main class="player-content"><div class="content-inner">' + content + '</div></main><footer>ESC  Fechar</footer></section>';
+}
+function validPublicSession(session) {
+  if (!session || session.status !== "active" || typeof session.sessionId !== "string") return false;
+  if (session.game === "lock") return Number.isInteger(session.publicConfig?.picks) && session.publicConfig.picks >= 1 && session.publicConfig.picks <= 10;
+  if (session.game === "pin") return Number.isInteger(session.publicConfig?.codeLength) && session.publicConfig.codeLength >= 3 && session.publicConfig.codeLength <= 8;
+  if (session.game === "hack") {
+    const puzzle = session.publicConfig?.puzzle;
+    return Number.isInteger(puzzle?.rows) && Number.isInteger(puzzle?.columns)
+      && puzzle.rows >= 4 && puzzle.rows <= 8 && puzzle.columns >= 4 && puzzle.columns <= 8
+      && Array.isArray(puzzle.board) && puzzle.board.length === puzzle.rows
+      && puzzle.board.every((row) => Array.isArray(row) && row.length === puzzle.columns && row.every((value) => typeof value === "string"))
+      && Array.isArray(puzzle.target) && puzzle.target.length === puzzle.sequenceLength
+      && Number.isInteger(puzzle.sequenceLength) && puzzle.sequenceLength >= 3 && puzzle.sequenceLength <= 6;
+  }
+  return false;
 }
 function masterActive() {
   const label = state.session.game === "lock" ? "ABRIR FECHADURA" : state.session.game === "hack" ? "HACKING" : "PAINEL NUMÉRICO";
