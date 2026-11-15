@@ -2,7 +2,7 @@
 
 Extensão para Owlbear Rodeo com três minijogos controlados pelo mestre: abrir fechadura, hacking de matriz e painel numérico.
 
-## Instalação — versão 1.0.4
+## Instalação — versão 1.0.5
 
 Use o manifesto da branch principal:
 `https://cdn.jsdelivr.net/gh/Onze1Onze/Sistema-Utilidade@main/manifest.json`
@@ -21,7 +21,7 @@ O HTML registra um listener inline antes dos módulos e guarda o evento `OBR_REA
 
 ## Minijogos
 
-- **Abrir Fechadura:** ajuste angular, margem de acerto, tentativas limitadas e cinco presets de dificuldade.
+- **Abrir Fechadura:** minijogo de pinos inspirado em Oblivion. Cada pino sobe e desce com velocidade e fase próprias; o jogador clica na janela superior durante a subida para travá-lo. Erros consomem gazuas. Cinco presets e ajustes avançados controlam quantidade de pinos, precisão, velocidade e variação entre movimentos.
 - **Hacking:** matriz de códigos, sequência-alvo, seleção alternada entre coluna e linha e buffer configurável.
 - **Painel Numérico:** senha definida pelo mestre, teclado numérico e validação no processo de fundo do mestre.
 
@@ -35,7 +35,7 @@ A conexão usa o canal `com.onze11.sistema-utilidade/v1` do `OBR.broadcast`.
 4. O resultado também é enviado com `destination: "LOCAL"` para atualizar a interface do mestre, que mostra quem tentou, a resposta e as tentativas restantes.
 5. O processamento é serializado para evitar que duas tentativas simultâneas sobrescrevam o estado secreto.
 
-A senha e o ângulo correto não são enviados aos metadados públicos da sala. Apenas a matriz e a sequência do hacking são públicas porque são pistas do desafio.
+A senha numérica, a janela de precisão e o estado autoritativo dos pinos ficam no dispositivo do mestre e não são enviados aos metadados públicos da sala. A configuração pública contém apenas as velocidades/fases necessárias para animar os pinos no dispositivo do jogador e a faixa visual de acerto. Apenas a matriz e a sequência do hacking são públicas porque são pistas do desafio.
 
 ## Desenvolvimento e testes
 
