@@ -131,7 +131,7 @@ test("interface do mestre mostra tentativa recebida e resultado processado", asy
   let renders = 0;
   const onMessage = new Function(
     "state","connectionId","render","clearTimeout","timeout",
-    handlerSource + "\\nreturn onMessage;"
+    handlerSource + "\nreturn onMessage;"
   )(state,"gm-connection",()=>{renders += 1;},()=>{},null);
 
   await onMessage({
@@ -177,7 +177,7 @@ test("interface do jogador só aceita a resposta da tentativa pendente", async (
   let renders = 0;
   const onMessage = new Function(
     "state","connectionId","render","clearTimeout","timeout",
-    handlerSource + "\\nreturn onMessage;"
+    handlerSource + "\nreturn onMessage;"
   )(state,"player-connection",()=>{renders += 1;},()=>{},null);
 
   await onMessage({data:{
