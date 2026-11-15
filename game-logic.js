@@ -3,11 +3,11 @@ export const CHANNEL = "com.onze11.sistema-utilidade/v1";
 export const SECRET_PREFIX = "com.onze11.sistema-utilidade/secret/";
 
 export const LOCK_PRESETS = {
-  1: { tolerance: 34, picks: 7 },
-  2: { tolerance: 26, picks: 6 },
-  3: { tolerance: 19, picks: 5 },
-  4: { tolerance: 12, picks: 4 },
-  5: { tolerance: 7, picks: 3 }
+  1: { pinCount: 3, picks: 9, lockPrecision: 76, cycleMs: 1850, speedVariationMs: 300 },
+  2: { pinCount: 4, picks: 8, lockPrecision: 82, cycleMs: 1600, speedVariationMs: 450 },
+  3: { pinCount: 5, picks: 7, lockPrecision: 88, cycleMs: 1350, speedVariationMs: 650 },
+  4: { pinCount: 6, picks: 6, lockPrecision: 93, cycleMs: 1100, speedVariationMs: 800 },
+  5: { pinCount: 7, picks: 5, lockPrecision: 97, cycleMs: 850, speedVariationMs: 1000 }
 };
 
 export const HACK_PRESETS = {
@@ -130,6 +130,49 @@ export function validateHackAttempt(path, puzzle) {
   return values.every((value, index) => value === puzzle.target[index]);
 }
 
+export function createLockPuzzle(config = {}, random = Math.random) {
+  const pinCount = clampInteger(config.pinCount, 3, 8, 5);
+  const picks = clampInteger(config.picks, 1, 15, 7);
+  const lockPrecision = clampInteger(config.lockPrecision, 70, 98, 88);
+  const cycleMs = clampInteger(config.cycleMs, 650, 2200, 1350);
+  const speedVariationMs = clampInteger(config.speedVariationMs, 0, 1200, 650);
+  const pins = Array.from({ length: pinCount }, (_, index) => {
+    const cycleDurationMs = clampInteger(
+      cycleMs + Math.floor(random() * (speedVariationMs + 1)),
+      650,
+      3400,
+      cycleMs
+    );
+    return {
+      id: index + 1,
+      cycleDurationMs,
+      phaseOffsetMs: Math.floor(random() * cycleDurationMs)
+    };
+  });
+  return {
+    pinCount,
+    picks,
+    lockPrecision,
+    hitThreshold: lockPrecision / 100,
+    pins
+  };
+}
+
+export function getLockPinMotion(pin, elapsedMs) {
+  const cycleDurationMs = clampInteger(pin?.cycleDurationMs, 650, 3400, 1350);
+  const phaseOffsetMs = Number.isFinite(pin?.phaseOffsetMs) ? pin.phaseOffsetMs : 0;
+  const elapsed = Number.isFinite(elapsedMs) ? elapsedMs : 0;
+  const cyclePosition = ((elapsed + phaseOffsetMs) % cycleDurationMs + cycleDurationMs) % cycleDurationMs;
+  const phase = cyclePosition / cycleDurationMs;
+  const rising = phase < 0.5;
+  const position = rising ? phase * 2 : (1 - phase) * 2;
+  return {
+    position: Math.max(0, Math.min(1, position)),
+    rising,
+    phase
+  };
+}
+
 export function resolvePlayerAttempt(session, secret, message) {
   if (!session || session.status !== "active" || !message
     || session.sessionId !== message.sessionId
@@ -151,21 +194,50 @@ export function resolvePlayerAttempt(session, secret, message) {
   let responseText = "";
   let remaining = null;
 
-  if (session.game === "lock" && message.kind === "lock") {
-    if (!Number.isFinite(message.angle) || message.angle < 0 || message.angle >= 360
-      || !Number.isFinite(nextSecret.targetAngle) || nextSecret.targetAngle < 0 || nextSecret.targetAngle >= 360
-      || !Number.isFinite(nextSecret.tolerance) || nextSecret.tolerance < 0 || nextSecret.tolerance > 45
-      || !Number.isInteger(nextSecret.picksLeft) || nextSecret.picksLeft < 1) return null;
-    success = validateLockAttempt(message.angle, nextSecret.targetAngle, nextSecret.tolerance);
+  let lockedPins = null;
+  let lockedCount = null;
+
+  if (session.game === "lock" && message.kind === "lock-pin") {
+    if (!Array.isArray(nextSecret.pins) || nextSecret.pins.length < 3 || nextSecret.pins.length > 8
+      || !Number.isInteger(nextSecret.picksLeft) || nextSecret.picksLeft < 1
+      || !Number.isFinite(nextSecret.hitThreshold) || nextSecret.hitThreshold < 0.70 || nextSecret.hitThreshold > 0.98
+      || !Number.isInteger(message.pinIndex) || message.pinIndex < 0 || message.pinIndex >= nextSecret.pins.length
+      || !Number.isFinite(message.position) || message.position < 0 || message.position > 1
+      || typeof message.rising !== "boolean") return null;
+
+    if (!Array.isArray(nextSecret.lockedPins) || nextSecret.lockedPins.length !== nextSecret.pins.length) {
+      nextSecret.lockedPins = Array.from({ length: nextSecret.pins.length }, () => false);
+    }
+    if (nextSecret.lockedPins[message.pinIndex]) {
+      return {
+        success: false,
+        responseText: "Este pino já está travado.",
+        remaining: nextSecret.picksLeft,
+        finished: false,
+        lockedPins: [...nextSecret.lockedPins],
+        lockedCount: nextSecret.lockedPins.filter(Boolean).length,
+        secret: nextSecret
+      };
+    }
+
+    success = message.rising && message.position >= nextSecret.hitThreshold;
     if (success) {
-      responseText = "Fechadura destrancada.";
-      nextSecret.finished = true;
+      nextSecret.lockedPins[message.pinIndex] = true;
+      lockedCount = nextSecret.lockedPins.filter(Boolean).length;
+      lockedPins = [...nextSecret.lockedPins];
+      remaining = nextSecret.picksLeft;
+      nextSecret.finished = lockedCount === nextSecret.pins.length;
+      responseText = nextSecret.finished
+        ? "Todos os pinos travados. Fechadura destrancada!"
+        : "Pino " + (message.pinIndex + 1) + " travado. " + lockedCount + "/" + nextSecret.pins.length + " posicionados.";
     } else {
       nextSecret.picksLeft = Math.max(0, nextSecret.picksLeft - 1);
       remaining = nextSecret.picksLeft;
+      lockedPins = [...(nextSecret.lockedPins || [])];
+      lockedCount = nextSecret.lockedPins.filter(Boolean).length;
       responseText = remaining > 0
-        ? "A ferramenta cedeu. Ajuste a posição."
-        : "A ferramenta quebrou. A fechadura resistiu.";
+        ? "Você perdeu o tempo. A gazua sofreu dano. Tente novamente."
+        : "A gazua quebrou. A fechadura permanece trancada.";
       if (remaining === 0) nextSecret.finished = true;
     }
   } else if (session.game === "hack" && message.kind === "hack") {
@@ -200,6 +272,8 @@ export function resolvePlayerAttempt(session, secret, message) {
     responseText,
     remaining,
     finished: Boolean(nextSecret.finished),
+    lockedPins: lockedPins ?? (Array.isArray(nextSecret.lockedPins) ? [...nextSecret.lockedPins] : null),
+    lockedCount: lockedCount ?? (Array.isArray(nextSecret.lockedPins) ? nextSecret.lockedPins.filter(Boolean).length : null),
     secret: nextSecret
   };
 }
