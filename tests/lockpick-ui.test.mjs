@@ -31,7 +31,7 @@ test("a faixa visual de acerto é dimensionada pela precisão configurada", () =
   assert.match(css, /\.lock-pin-target/);
 });
 
-test("a configuração do mestre publica velocidades individuais e mantém o limiar privado para validação", () => {
+test("a configuração do mestre publica velocidades individuais e sincroniza a faixa visual com o limiar de validação", () => {
   assert.match(app, /createLockPuzzle\(\{/);
   assert.match(app, /cycleMs:state\.lockCycleMs/);
   assert.match(app, /speedVariationMs:state\.lockSpeedVariation/);
