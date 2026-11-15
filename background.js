@@ -121,7 +121,7 @@ async function handleBroadcast(event) {
 
   await sendPlayerResult(senderConnectionId, session, requestId, result);
   await sendMasterStatus(senderConnectionId, session, requestId, result);
-  if (result.success) {
+  if (result.success && result.finished) {
     await OBR.notification.show("Minijogo concluído", "SUCCESS");
   }
 }
