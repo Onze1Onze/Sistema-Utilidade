@@ -81,7 +81,7 @@ function lockConfig() {
 }
 function hackConfig() {
   return '<div class="config-grid"><section class="card"><h2>Dificuldade predefinida</h2>' + presets("hack", state.hackLevel || 3) +
-  '<div class="stats"><span>Matriz <b>' + state.columns + ' × ' + state.rows + '</b></span><span>Buffer <b>' + state.length + '</b></span></div>' +
+  '<div class="stats"><span>Matriz <b id="matrix-value">' + state.columns + ' × ' + state.rows + '</b></span><span>Buffer <b id="buffer-value">' + state.length + '</b></span></div>' +
   '<button class="plain" data-action="advanced">' + (state.advanced ? "− Ocultar ajustes" : "+ Ajustar detalhes") + '</button>' +
   (state.advanced ? slider("rows", "Linhas", state.rows, 4, 8, "") + slider("columns", "Colunas", state.columns, 4, 8, "") + slider("length", "Tamanho do buffer", state.length, 3, 6, " códigos") : "") +
   '<button class="primary" data-action="publish">Preparar e liberar</button></section><section class="preview"><div class="preview-grid">' + Array.from({length:16}, () => "<i></i>").join("") + '</div><p>O jogador percorre a matriz alternando coluna e linha para completar a sequência-alvo.</p></section></div>';
@@ -167,9 +167,9 @@ root.addEventListener("input", (event) => {
   if (id === "pin") { state.pin = normalizePin(event.target.value); event.target.value = state.pin; document.querySelector('[data-action="publish"]').disabled = state.pin.length < 3; }
   if (id === "tolerance") { state.tolerance=value; document.querySelector("#tolerance-value").textContent=value+"°"; }
   if (id === "picks") { state.picks=value; document.querySelector("#picks-value").textContent=value; }
-  if (id === "rows") { state.rows=value; state.length=Math.min(state.length,Math.min(6,state.rows+state.columns-1)); render(); }
-  if (id === "columns") { state.columns=value; state.length=Math.min(state.length,Math.min(6,state.rows+state.columns-1)); render(); }
-  if (id === "length") { state.length=value; document.querySelector("#length-value").textContent=value+" códigos"; }
+  if (id === "rows") { state.rows=value; document.querySelector("#matrix-value").textContent=state.columns+" × "+state.rows; }
+  if (id === "columns") { state.columns=value; document.querySelector("#matrix-value").textContent=state.columns+" × "+state.rows; }
+  if (id === "length") { state.length=value; document.querySelector("#length-value").textContent=value+" códigos"; document.querySelector("#buffer-value").textContent=value; }
 });
 async function publish() {
   try {
@@ -200,8 +200,7 @@ async function sendAttempt(attempt) {
 async function onMessage(event) {
   const message=event?.data;
   if(!message || message.type!=="result" || message.targetConnectionId!==connectionId) return;
-  if(!gmConnectionId) await findGM();
-  if(!gmConnectionId || event.connectionId!==gmConnectionId || message.sessionId!==state.session?.sessionId) return;
+  if(message.sessionId!==state.session?.sessionId || message.game!==state.session?.game) return;
   clearTimeout(timeout); timeout=null; state.waiting=false; state.result=message;
   if(message.remaining!==null && message.remaining!==undefined) state.picksLeft=message.remaining;
   render();
