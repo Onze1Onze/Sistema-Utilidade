@@ -4,12 +4,12 @@
   "manifest_version": 1,
   "description": "Minijogos de fechadura, hacking e painel numérico para Owlbear Rodeo.",
   "author": "Onze1Onze",
-  "icon": "https://rawcdn.githack.com/Onze1Onze/Sistema-Utilidade/8581565be5a9d67e02ddad6e99c06595c6a12339/icon.svg",
-  "background_url": "https://rawcdn.githack.com/Onze1Onze/Sistema-Utilidade/8581565be5a9d67e02ddad6e99c06595c6a12339/background.html",
+  "icon": "https://rawcdn.githack.com/Onze1Onze/Sistema-Utilidade/c49667bc89eb369eb2c3a452fb258a82916223e4/icon.svg",
+  "background_url": "https://rawcdn.githack.com/Onze1Onze/Sistema-Utilidade/c49667bc89eb369eb2c3a452fb258a82916223e4/background.html",
   "action": {
     "title": "Sistema de Fechaduras",
-    "icon": "https://rawcdn.githack.com/Onze1Onze/Sistema-Utilidade/8581565be5a9d67e02ddad6e99c06595c6a12339/icon.svg",
-    "popover": "https://rawcdn.githack.com/Onze1Onze/Sistema-Utilidade/8581565be5a9d67e02ddad6e99c06595c6a12339/index.html",
+    "icon": "https://rawcdn.githack.com/Onze1Onze/Sistema-Utilidade/c49667bc89eb369eb2c3a452fb258a82916223e4/icon.svg",
+    "popover": "https://rawcdn.githack.com/Onze1Onze/Sistema-Utilidade/c49667bc89eb369eb2c3a452fb258a82916223e4/index.html",
     "width": 980,
     "height": 700
   }
