@@ -1,33 +1,38 @@
 # Sistema de Fechaduras — Owlbear Rodeo
 
-Extensão com três minijogos controlados pelo mestre:
+Extensão para Owlbear Rodeo com três minijogos controlados pelo mestre: abrir fechadura, hacking de matriz e painel numérico.
 
-- **Abrir Fechadura:** ajuste angular, zona de acerto configurável e ferramentas limitadas.
-- **Hacking:** matriz de códigos com alternância entre coluna e linha, sequência-alvo e buffer.
-- **Painel Numérico:** senha definida pelo mestre e validada no cliente do mestre.
+## Instalação — versão 1.0.2
 
-## Instalação
-
-URL do manifesto (versão corrigida):
-
-`https://cdn.jsdelivr.net/gh/Onze1Onze/Sistema-Utilidade@bbb4c64d78faf77baa8a725fad33dc8457b67f86/manifest.json` A versão atual utiliza o host `rawcdn.githack.com` para as páginas HTML porque o jsDelivr entrega arquivos `.html` com `Content-Type: text/plain`, fazendo o navegador exibir o código-fonte em vez de renderizar a interface.
+Manifesto:
+`https://cdn.jsdelivr.net/gh/Onze1Onze/Sistema-Utilidade@586ccc53727f03d748e47623a7e9ebb5afa9842a/manifest.json`
 
 1. No Owlbear Rodeo, abra **Extras → Extensions → Add**.
-2. Cole a URL do `manifest.json`.
+2. Cole o link do manifesto.
 3. Ative a extensão na sala.
-4. O mestre abre a ação, escolhe o minijogo, configura e seleciona **Preparar e liberar**.
-5. A tela dos jogadores é aberta quando a sessão é publicada. Os jogadores recebem somente a tela do minijogo, sem o menu de configuração do mestre.
+4. O mestre abre a ação, escolhe um minijogo, configura a dificuldade e seleciona **Preparar e liberar**.
+5. Os jogadores recebem somente a tela do minijogo ativo. Sem sessão liberada, a janela dos jogadores permanece vazia.
+
+## Inicialização
+
+A interface é desenhada imediatamente pelo próprio `app.js`, sem aguardar o SDK ou outro módulo remoto. A conexão com o Owlbear é inicializada em segundo plano usando duas fontes de SDK em sequência, com timeout e mensagem de erro recuperável. Assim, uma falha de CDN não deixa a janela presa em um texto de carregamento.
+
+## Minijogos
+
+- **Abrir Fechadura:** ajuste angular, margem de acerto, tentativas limitadas e cinco presets de dificuldade.
+- **Hacking:** matriz de códigos, sequência-alvo, seleção alternada entre coluna e linha e buffer configurável.
+- **Painel Numérico:** senha definida pelo mestre, teclado numérico e validação no processo de fundo do mestre.
 
 ## Desenvolvimento e testes
 
-A lógica independente do Owlbear SDK está em `game-logic.js`. Para executar os testes com Node.js 20 ou superior:
+A lógica de geração do hacking é compartilhada com `game-logic.js`. Para executar os testes com Node.js 20 ou superior:
 
 `npm test`
 
-A interface usa o SDK oficial `@owlbear-rodeo/sdk` 3.1.0 via esm.sh, sem etapa de compilação.
+A extensão utiliza `@owlbear-rodeo/sdk` 3.1.0. Não há etapa de compilação; os arquivos são estáticos.
 
 ## Sincronização e privacidade
 
-O estado público mínimo da sessão fica no metadado da sala. A senha numérica e o ângulo secreto da fechadura ficam no `localStorage` do dispositivo do mestre. As tentativas são enviadas por `OBR.broadcast` e validadas pelo processo de fundo do mestre; a senha nunca é incluída nos metadados públicos. A matriz e a sequência-alvo do hacking são visíveis para os jogadores porque fazem parte do próprio desafio.
+O estado público mínimo da sessão fica nos metadados da sala. A senha numérica e o ângulo secreto da fechadura ficam no `localStorage` do dispositivo do mestre. As tentativas são enviadas por `OBR.broadcast` e validadas pelo processo de fundo do mestre. A senha não é incluída nos metadados públicos. A matriz e a sequência-alvo do hacking são visíveis para os jogadores porque fazem parte do desafio.
 
-A validação do painel e da fechadura depende do processo de fundo do Owlbear permanecer carregado no navegador do mestre. A extensão não usa servidor externo próprio.
+A validação do painel e da fechadura depende do processo de fundo do Owlbear permanecer conectado na sessão do mestre. A extensão não usa servidor externo próprio.
