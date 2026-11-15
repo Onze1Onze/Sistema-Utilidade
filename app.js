@@ -339,7 +339,7 @@ async function onMessage(event) {
 
   if(message.type!=="result" || message.targetConnectionId!==connectionId) return;
   if(message.sessionId!==state.session?.sessionId || message.game!==state.session?.game) return;
-  if(state.pendingRequestId && message.requestId!==state.pendingRequestId) return;
+  if(!state.pendingRequestId || message.requestId!==state.pendingRequestId) return;
   clearTimeout(timeout); timeout=null; state.waiting=false; state.pendingRequestId=null; state.result=message;
   if(message.remaining!==null && message.remaining!==undefined) state.picksLeft=message.remaining;
   render();
