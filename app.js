@@ -191,7 +191,8 @@ function validPublicSession(session) {
 function masterActive() {
   const label = state.session.game === "lock" ? "ABRIR FECHADURA" : state.session.game === "hack" ? "HACKING" : "PAINEL NUMÉRICO";
   const activity = state.lastAttempt
-    ? '<section class="gm-attempt ' + escapeHTML(state.lastAttempt.status || "processing") + '"><div class="gm-attempt-head"><b>' + escapeHTML(state.lastAttempt.playerLabel || "JOGADOR") + '</b><span>' + escapeHTML(state.lastAttempt.statusLabel || "PROCESSANDO") + '</span></div><p>' + escapeHTML(state.lastAttempt.responseText || "Tentativa recebida.") + '</p>' + (state.lastAttempt.remaining !== null && state.lastAttempt.remaining !== undefined ? '<small>TENTATIVAS RESTANTES: ' + Number(state.lastAttempt.remaining) + '</small>' : '') + '</section>'
+    ? '<section class="gm-attempt ' + escapeHTML(state.lastAttempt.status || "processing") + '"><div class="gm-attempt-head"><b>' + escapeHTML(state.lastAttempt.playerLabel || "JOGADOR") + '</b><span>' + escapeHTML(state.lastAttempt.statusLabel || "PROCESSANDO") + '</span></div><p>' + escapeHTML(state.lastAttempt.responseText || "Tentativa recebida.") + '</p>' + (state.lastAttempt.remaining !== null && state.lastAttempt.remaining !== undefined ? '<small>GAZUAS RESTANTES: ' + Number(state.lastAttempt.remaining) + '</small>' : '') +
+      (state.lastAttempt.lockedCount !== null && state.lastAttempt.lockedCount !== undefined ? '<small>PINOS TRAVADOS: ' + Number(state.lastAttempt.lockedCount) + '/' + Number(state.lastAttempt.pinCount || state.lastAttempt.lockedCount) + '</small>' : '') + '</section>'
     : '<section class="gm-attempt idle"><div class="gm-attempt-head"><b>JOGADORES</b><span>AGUARDANDO</span></div><p>Aguardando a primeira tentativa.</p></section>';
   return '<div class="heading"><div><h1>' + label + '</h1><p>Desafio liberado para os jogadores.</p></div><span class="tag">ATIVO</span></div><section class="card active-card"><div class="big-mark">✓</div><h2>Desafio em andamento</h2><p>As tentativas dos jogadores aparecerão aqui.</p>' + activity + '<button class="danger" data-action="end">Encerrar minijogo</button></section>';
 }
@@ -467,6 +468,8 @@ async function onMessage(event) {
         playerLabel:"JOGADOR · "+String(message.playerConnectionId || event.connectionId || "").slice(-6),
         responseText:String(message.responseText || "Tentativa processada."),
         remaining:message.remaining,
+        lockedCount:message.lockedCount,
+        pinCount:message.pinCount,
         requestId:message.requestId
       };
       render();
