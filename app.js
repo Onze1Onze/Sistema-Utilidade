@@ -45,7 +45,7 @@ function acceptSession(session) {
 function shell(content) {
   return '<section class="frame"><header class="top"><span class="mark"></span><span>INTERFACE DE CONTROLE</span><span class="lights">▰ ▰ ▰ ▰</span></header><div class="workspace"><aside class="sidebar ' + (state.collapsed ? "small" : "") + '"><button class="collapse" data-action="collapse" aria-label="Recolher menu">' + (state.collapsed ? "»" : "«") + '</button>' +
     nav("lock", "♙", "Abrir Fechadura") + nav("hack", "⌘", "Hacking") + nav("pin", "▦", "Painel Numérico") +
-    '</aside><main class="content">' + content + '</main></div><footer>◉  Interagir <span>ESC  Fechar</span></footer></section>';
+    '</aside><main class="content"><div class="content-inner">' + content + '</div></main></div><footer>◉  Interagir <span>ESC  Fechar</span></footer></section>';
 }
 function nav(mode, symbol, label) {
   return '<button class="nav ' + (state.mode === mode ? "active" : "") + '" data-mode="' + mode + '"><b>' + symbol + '</b><span>' + label + '</span><i>›</i></button>';
