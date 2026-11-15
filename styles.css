@@ -47,3 +47,15 @@ footer{border-top:1px solid #202a33;display:flex;align-items:center;justify-cont
 @media(max-width:520px){.lights{font-size:9px}.tag{display:none}.heading{align-items:flex-start}.status-chip{display:none}.form-row{grid-template-columns:1fr;gap:6px}.play-controls{padding-bottom:8px}.game-head p{font-size:11px}.cell{aspect-ratio:1.05}.target{min-width:0}.target span{font-size:11px}.pin-game{margin:16px auto}.keypad button{min-height:48px}}
 
 .ui-notice{position:relative;z-index:4;margin:0 0 12px;padding:10px 12px;border:1px solid rgba(255,48,58,.65);background:rgba(90,12,20,.35);color:#ffb5b9;font-size:12px;line-height:1.4}
+
+.gm-attempt{margin:18px 0 2px;padding:14px 15px;border:1px solid #34414c;background:#080e13;text-align:left}
+.gm-attempt.idle{border-color:#2b3944;background:rgba(7,13,18,.7)}
+.gm-attempt.processing{border-color:#177b91;background:rgba(0,217,245,.06)}
+.gm-attempt.success{border-color:#218b65;background:rgba(24,166,111,.09)}
+.gm-attempt.error,.gm-attempt.failed{border-color:#a92e38;background:rgba(255,48,58,.08)}
+.gm-attempt-head{display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:10px;letter-spacing:.1em;color:#b9c5cf}
+.gm-attempt-head span{color:#86ddeb}
+.gm-attempt.success .gm-attempt-head span{color:#79e1b5}
+.gm-attempt.error .gm-attempt-head span,.gm-attempt.failed .gm-attempt-head span{color:#ff858d}
+.gm-attempt p{margin:10px 0 0;color:#d4dce4;font-size:13px;line-height:1.45}
+.gm-attempt small{display:block;margin-top:9px;color:#8ce9f5;font-size:10px;letter-spacing:.08em}
