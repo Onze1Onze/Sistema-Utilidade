@@ -2,7 +2,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   angularDistance, validateLockAttempt, makeHackPuzzle,
-  isValidHackPath, validateHackAttempt, normalizePin, clampInteger
+  isValidHackPath, validateHackAttempt, normalizePin, clampInteger,
+  resolvePlayerAttempt
 } from "../game-logic.js";
 
 function seeded(seed) {
@@ -64,4 +65,51 @@ test("normaliza o PIN e limita valores numéricos", () => {
   assert.equal(normalizePin("12a-3456789"),"12345678");
   assert.equal(clampInteger("99",1,8,4),8);
   assert.equal(clampInteger("inválido",1,8,4),4);
+});
+
+test("tentativa de fechadura é validada e consome ferramentas", () => {
+  const session = { status:"active", sessionId:"lock-1", game:"lock" };
+  const secret = { game:"lock", targetAngle:90, tolerance:5, picksLeft:2, finished:false };
+  const miss = resolvePlayerAttempt(session, secret, { type:"attempt", sessionId:"lock-1", game:"lock", kind:"lock", angle:120 });
+  assert.equal(miss.success,false);
+  assert.equal(miss.remaining,1);
+  assert.equal(miss.secret.picksLeft,1);
+  assert.equal(miss.finished,false);
+  const hit = resolvePlayerAttempt(session, secret, { type:"attempt", sessionId:"lock-1", game:"lock", kind:"lock", angle:92 });
+  assert.equal(hit.success,true);
+  assert.equal(hit.finished,true);
+  assert.equal(secret.picksLeft,2,"a validação não deve mutar o segredo original");
+});
+test("tentativa de hacking valida a rota completa", () => {
+  const board = Array.from({length:4},()=>Array(4).fill("00"));
+  board[0][0]="A0"; board[1][0]="B1"; board[1][1]="C2";
+  const puzzle = { rows:4, columns:4, sequenceLength:3, board, target:["A0","B1","C2"] };
+  const session = { status:"active", sessionId:"hack-1", game:"hack" };
+  const secret = { game:"hack", puzzle, finished:false };
+  const result = resolvePlayerAttempt(session, secret, { sessionId:"hack-1", game:"hack", kind:"hack", path:[[0,0],[1,0],[1,1]] });
+  assert.equal(result.success,true);
+  assert.equal(result.finished,true);
+  const invalid = resolvePlayerAttempt(session, secret, { sessionId:"hack-1", game:"hack", kind:"hack", path:[[0,0],[1,0],[1,2]] });
+  assert.equal(invalid.success,false);
+  assert.equal(invalid.finished,false);
+});
+test("painel numérico distingue senha errada, comprimento e sucesso", () => {
+  const session = { status:"active", sessionId:"pin-1", game:"pin" };
+  const secret = { game:"pin", code:"4826", finished:false };
+  const wrongLength = resolvePlayerAttempt(session, secret, { sessionId:"pin-1", game:"pin", kind:"pin", code:"48" });
+  assert.equal(wrongLength.responseText,"O código precisa ter 4 dígitos.");
+  assert.equal(wrongLength.finished,false);
+  const wrong = resolvePlayerAttempt(session, secret, { sessionId:"pin-1", game:"pin", kind:"pin", code:"1111" });
+  assert.equal(wrong.success,false);
+  assert.equal(wrong.finished,false);
+  const correct = resolvePlayerAttempt(session, secret, { sessionId:"pin-1", game:"pin", kind:"pin", code:"48-26" });
+  assert.equal(correct.success,true);
+  assert.equal(correct.finished,true);
+});
+test("protocolo rejeita mensagens de outra sessão, jogo ou formato", () => {
+  const session = { status:"active", sessionId:"pin-2", game:"pin" };
+  const secret = { game:"pin", code:"1234", finished:false };
+  assert.equal(resolvePlayerAttempt(session, secret, { sessionId:"other", game:"pin", kind:"pin", code:"1234" }),null);
+  assert.equal(resolvePlayerAttempt(session, secret, { sessionId:"pin-2", game:"lock", kind:"pin", code:"1234" }),null);
+  assert.equal(resolvePlayerAttempt(session, secret, { sessionId:"pin-2", game:"pin", kind:"unknown" }),null);
 });
