@@ -355,6 +355,8 @@ root.addEventListener("input", (event) => {
     state.pinCount=value;
     const output=document.querySelector("#pin-count-value"); if(output) output.textContent=value;
     const summary=document.querySelector("#lock-pins-summary"); if(summary) summary.textContent=value;
+    const preview=document.querySelector(".lock-preview-pins");
+    if(preview) preview.innerHTML=Array.from({length:value},(_,index)=>'<span class="lock-preview-pin"><i></i><small>'+String(index+1).padStart(2,"0")+'</small></span>').join("");
   }
   if (id === "lock-precision") {
     state.lockPrecision=value;
