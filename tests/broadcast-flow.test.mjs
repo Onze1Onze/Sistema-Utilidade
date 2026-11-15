@@ -9,6 +9,7 @@ import {
 } from "../game-logic.js";
 
 const backgroundSource = await readFile(new URL("../background.js", import.meta.url), "utf8");
+const appSource = await readFile(new URL("../app.js", import.meta.url), "utf8");
 
 async function bootBackground({session, secret}) {
   const source = backgroundSource
@@ -117,4 +118,80 @@ test("tentativa incorreta recebe resposta e aparece no mestre sem encerrar o des
   assert.equal(masterStatus?.data.responseText,"Código incorreto.");
   assert.equal(masterStatus?.options.destination,"LOCAL");
   assert.equal(playerReply?.data.requestId,"request-002");
+});
+
+test("interface do mestre mostra tentativa recebida e resultado processado", async () => {
+  const handlerSource = appSource.match(/async function onMessage\(event\) \{[\s\S]*?\n\}/)?.[0];
+  assert.ok(handlerSource, "onMessage precisa existir na interface");
+  const state = {
+    role:"GM",
+    session:{sessionId:"gm-ui-room",game:"pin"},
+    lastAttempt:null
+  };
+  let renders = 0;
+  const onMessage = new Function(
+    "state","connectionId","render","clearTimeout","timeout",
+    handlerSource + "\\nreturn onMessage;"
+  )(state,"gm-connection",()=>{renders += 1;},()=>{},null);
+
+  await onMessage({
+    connectionId:"player-connection-789",
+    data:{
+      type:"attempt",
+      requestId:"ui-request-1",
+      sessionId:"gm-ui-room",
+      game:"pin"
+    }
+  });
+  assert.match(state.lastAttempt.responseText,/Tentativa recebida/);
+  assert.equal(state.lastAttempt.status,"processing");
+
+  await onMessage({
+    connectionId:"gm-connection",
+    data:{
+      type:"master-status",
+      requestId:"ui-request-1",
+      sessionId:"gm-ui-room",
+      game:"pin",
+      playerConnectionId:"player-connection-789",
+      success:true,
+      responseText:"Código correto. Acesso liberado.",
+      remaining:null,
+      finished:true
+    }
+  });
+  assert.equal(state.lastAttempt.status,"success");
+  assert.equal(state.lastAttempt.responseText,"Código correto. Acesso liberado.");
+  assert.ok(renders >= 2,"a tela do mestre precisa redesenhar ao receber os dois eventos");
+});
+
+test("interface do jogador só aceita a resposta da tentativa pendente", async () => {
+  const handlerSource = appSource.match(/async function onMessage\(event\) \{[\s\S]*?\n\}/)?.[0];
+  const state = {
+    role:"PLAYER",
+    session:{sessionId:"player-room",game:"pin"},
+    pendingRequestId:"request-current",
+    waiting:true,
+    result:null
+  };
+  let renders = 0;
+  const onMessage = new Function(
+    "state","connectionId","render","clearTimeout","timeout",
+    handlerSource + "\\nreturn onMessage;"
+  )(state,"player-connection",()=>{renders += 1;},()=>{},null);
+
+  await onMessage({data:{
+    type:"result",targetConnectionId:"player-connection",sessionId:"player-room",
+    game:"pin",requestId:"request-old",success:true,responseText:"Resposta antiga."
+  }});
+  assert.equal(state.waiting,true,"resposta antiga não pode encerrar a espera atual");
+
+  await onMessage({data:{
+    type:"result",targetConnectionId:"player-connection",sessionId:"player-room",
+    game:"pin",requestId:"request-current",success:true,responseText:"Código correto. Acesso liberado."
+  }});
+  assert.equal(state.waiting,false);
+  assert.equal(state.pendingRequestId,null);
+  assert.equal(state.result.responseText,"Código correto. Acesso liberado.");
+  assert.equal(renders,1);
 });
