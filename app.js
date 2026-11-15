@@ -467,7 +467,7 @@ async function onMessage(event) {
     if(message.type==="master-status"){
       state.lastAttempt={
         status:message.success?"success":(message.finished?"failed":"error"),
-        statusLabel:message.success?"DESTRANCADO":(message.finished?"ENCERRADO":"TENTATIVA"),
+        statusLabel:message.success?(message.game==="lock"&&!message.finished?"PINO TRAVADO":"DESTRANCADO"):(message.finished?"ENCERRADO":"TENTATIVA"),
         playerLabel:"JOGADOR · "+String(message.playerConnectionId || event.connectionId || "").slice(-6),
         responseText:String(message.responseText || "Tentativa processada."),
         remaining:message.remaining,
