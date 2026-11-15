@@ -345,9 +345,7 @@ root.addEventListener("click", async (event) => {
 });
 root.addEventListener("input", (event) => {
   const id = event.target.id, value = Number(event.target.value);
-  if (id === "angle") { state.angle = value; document.querySelector("#angle-value").textContent = value + "°"; document.querySelector(".needle").style.transform = "rotate(" + value + "deg)"; }
   if (id === "pin") { state.pin = normalizePin(event.target.value); event.target.value = state.pin; document.querySelector('[data-action="publish"]').disabled = state.pin.length < 3; }
-  if (id === "tolerance") { state.tolerance=value; document.querySelector("#tolerance-value").textContent=value+"°"; }
   if (id === "picks") {
     state.picks=value;
     const output=document.querySelector("#picks-value"); if(output) output.textContent=value;
