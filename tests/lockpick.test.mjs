@@ -38,7 +38,7 @@ test("clique fora da janela ou durante a descida quebra uma gazua", () => {
   const session = { status:"active", sessionId:"lock-1", game:"lock" };
   const secret = {
     game:"lock",
-    pins:[{cycleDurationMs:1000,phaseOffsetMs:0},{cycleDurationMs:1350,phaseOffsetMs:200}],
+    pins:[{cycleDurationMs:1000,phaseOffsetMs:0},{cycleDurationMs:1350,phaseOffsetMs:200},{cycleDurationMs:1650,phaseOffsetMs:600}],
     hitThreshold:0.9,
     picksLeft:2,
     lockedPins:[false,false],
