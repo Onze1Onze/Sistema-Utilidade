@@ -95,8 +95,8 @@ test("acertos travam cada pino e só destrancam quando todos estão posicionados
 test("um pino já travado não consome outra gazua", () => {
   const session = { status:"active", sessionId:"lock-3", game:"lock" };
   const secret = {
-    game:"lock",pins:[{cycleDurationMs:1000,phaseOffsetMs:0},{cycleDurationMs:1000,phaseOffsetMs:0}],
-    hitThreshold:0.9,picksLeft:3,lockedPins:[true,false],finished:false
+    game:"lock",pins:[{cycleDurationMs:1000,phaseOffsetMs:0},{cycleDurationMs:1000,phaseOffsetMs:0},{cycleDurationMs:1000,phaseOffsetMs:0}],
+    hitThreshold:0.9,picksLeft:3,lockedPins:[true,false,false],finished:false
   };
   const result = resolvePlayerAttempt(session,secret,{
     sessionId:"lock-3",game:"lock",kind:"lock-pin",pinIndex:0,position:0.99,rising:true
