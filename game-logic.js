@@ -3,11 +3,11 @@ export const CHANNEL = "com.onze11.sistema-utilidade/v1";
 export const SECRET_PREFIX = "com.onze11.sistema-utilidade/secret/";
 
 export const LOCK_PRESETS = {
-  1: { pinCount: 3, picks: 9, lockPrecision: 76, cycleMs: 1850, speedVariationMs: 300 },
-  2: { pinCount: 4, picks: 8, lockPrecision: 82, cycleMs: 1600, speedVariationMs: 450 },
-  3: { pinCount: 5, picks: 7, lockPrecision: 88, cycleMs: 1350, speedVariationMs: 650 },
-  4: { pinCount: 6, picks: 6, lockPrecision: 93, cycleMs: 1100, speedVariationMs: 800 },
-  5: { pinCount: 7, picks: 5, lockPrecision: 97, cycleMs: 850, speedVariationMs: 1000 }
+  1: { pinCount: 3, picks: 9, lockPrecision: 76, lockCycleMs: 1850, lockSpeedVariation: 300 },
+  2: { pinCount: 4, picks: 8, lockPrecision: 82, lockCycleMs: 1600, lockSpeedVariation: 450 },
+  3: { pinCount: 5, picks: 7, lockPrecision: 88, lockCycleMs: 1350, lockSpeedVariation: 650 },
+  4: { pinCount: 6, picks: 6, lockPrecision: 93, lockCycleMs: 1100, lockSpeedVariation: 800 },
+  5: { pinCount: 7, picks: 5, lockPrecision: 97, lockCycleMs: 850, lockSpeedVariation: 1000 }
 };
 
 export const HACK_PRESETS = {
