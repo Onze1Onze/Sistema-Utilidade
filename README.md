@@ -8,7 +8,9 @@ Extensão com três minijogos controlados pelo mestre:
 
 ## Instalação
 
-Use a URL do manifesto mostrada na página do repositório. A versão atual utiliza o host `rawcdn.githack.com` para as páginas HTML porque o jsDelivr entrega arquivos `.html` com `Content-Type: text/plain`, fazendo o navegador exibir o código-fonte em vez de renderizar a interface.
+URL do manifesto (versão corrigida):
+
+`https://cdn.jsdelivr.net/gh/Onze1Onze/Sistema-Utilidade@bbb4c64d78faf77baa8a725fad33dc8457b67f86/manifest.json` A versão atual utiliza o host `rawcdn.githack.com` para as páginas HTML porque o jsDelivr entrega arquivos `.html` com `Content-Type: text/plain`, fazendo o navegador exibir o código-fonte em vez de renderizar a interface.
 
 1. No Owlbear Rodeo, abra **Extras → Extensions → Add**.
 2. Cole a URL do `manifest.json`.
