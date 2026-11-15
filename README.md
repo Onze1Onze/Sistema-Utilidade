@@ -2,20 +2,22 @@
 
 Extensão para Owlbear Rodeo com três minijogos controlados pelo mestre: abrir fechadura, hacking de matriz e painel numérico.
 
-## Instalação — versão 1.0.2
+## Instalação — versão 1.0.3
 
-Manifesto:
-`https://cdn.jsdelivr.net/gh/Onze1Onze/Sistema-Utilidade@586ccc53727f03d748e47623a7e9ebb5afa9842a/manifest.json`
+O manifesto atualizado está no repositório:
+`https://cdn.jsdelivr.net/gh/Onze1Onze/Sistema-Utilidade@main/manifest.json`
 
 1. No Owlbear Rodeo, abra **Extras → Extensions → Add**.
-2. Cole o link do manifesto.
+2. Cole a URL do manifesto.
 3. Ative a extensão na sala.
-4. O mestre abre a ação, escolhe um minijogo, configura a dificuldade e seleciona **Preparar e liberar**.
+4. O mestre abre a ação, escolhe o minijogo, configura a dificuldade e seleciona **Preparar e liberar**.
 5. Os jogadores recebem somente a tela do minijogo ativo. Sem sessão liberada, a janela dos jogadores permanece vazia.
 
-## Inicialização
+## Inicialização do Owlbear SDK
 
-A interface é desenhada imediatamente pelo próprio `app.js`, sem aguardar o SDK ou outro módulo remoto. A conexão com o Owlbear é inicializada em segundo plano usando duas fontes de SDK em sequência, com timeout e mensagem de erro recuperável. Assim, uma falha de CDN não deixa a janela presa em um texto de carregamento.
+O SDK oficial `@owlbear-rodeo/sdk` 3.1.0 é importado estaticamente no início dos módulos de interface e de fundo. Não usar `import()` dinâmico para o SDK: ele instala o listener de `window.message` durante a avaliação do módulo e precisa receber o evento único `OBR_READY` enviado pelo host.
+
+O HTML registra um listener inline antes dos módulos e guarda o evento `OBR_READY` se o SDK ainda não estiver carregado. Após a avaliação do módulo, o evento é reentregue ao SDK com a origem original. O SDK então valida essa origem contra a origem decodificada do parâmetro `obrref` na URL do iframe. A interface é renderizada antes da conexão; ações que necessitam do Owlbear aguardam a inicialização em vez de falhar imediatamente.
 
 ## Minijogos
 
@@ -25,11 +27,11 @@ A interface é desenhada imediatamente pelo próprio `app.js`, sem aguardar o SD
 
 ## Desenvolvimento e testes
 
-A lógica de geração do hacking é compartilhada com `game-logic.js`. Para executar os testes com Node.js 20 ou superior:
+A lógica de geração do hacking está em `game-logic.js`. Os testes de lógica e de handshake podem ser executados com Node.js 20 ou superior:
 
 `npm test`
 
-A extensão utiliza `@owlbear-rodeo/sdk` 3.1.0. Não há etapa de compilação; os arquivos são estáticos.
+A interface não exige etapa de compilação. O SDK é carregado da distribuição ESM do jsDelivr; os arquivos da extensão são estáticos.
 
 ## Sincronização e privacidade
 
