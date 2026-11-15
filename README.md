@@ -5,7 +5,7 @@ Extensão para Owlbear Rodeo com três minijogos controlados pelo mestre: abrir 
 ## Instalação — versão 1.0.5
 
 Use o manifesto da branch principal:
-`https://cdn.jsdelivr.net/gh/Onze1Onze/Sistema-Utilidade@main/manifest.json`
+`https://cdn.jsdelivr.net/gh/Onze1Onze/Sistema-Utilidade@c67eecdf2247d4efb407eeb3c53127b5298d9d7e/manifest.json`
 
 1. No Owlbear Rodeo, abra **Extras → Extensions → Add**.
 2. Cole a URL do manifesto.
