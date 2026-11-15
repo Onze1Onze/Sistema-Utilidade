@@ -29,7 +29,10 @@ async function sendPlayerResult(targetConnectionId, session, requestId, result) 
     success: Boolean(result.success),
     responseText: result.responseText,
     remaining: result.remaining ?? null,
-    finished: Boolean(result.finished)
+    finished: Boolean(result.finished),
+    lockedPins: Array.isArray(result.lockedPins) ? result.lockedPins : null,
+    lockedCount: Number.isInteger(result.lockedCount) ? result.lockedCount : null,
+    pinCount: Number.isInteger(session.publicConfig?.pinCount) ? session.publicConfig.pinCount : null
   }, { destination: "REMOTE" });
 }
 
@@ -46,6 +49,9 @@ async function sendMasterStatus(senderConnectionId, session, requestId, result) 
     responseText: result.responseText,
     remaining: result.remaining ?? null,
     finished: Boolean(result.finished),
+    lockedPins: Array.isArray(result.lockedPins) ? result.lockedPins : null,
+    lockedCount: Number.isInteger(result.lockedCount) ? result.lockedCount : null,
+    pinCount: Number.isInteger(session.publicConfig?.pinCount) ? session.publicConfig.pinCount : null,
     receivedAt: Date.now()
   }, { destination: "LOCAL" });
 }
