@@ -7,6 +7,21 @@
   <meta name="color-scheme" content="dark" />
   <title>Sistema de Fechaduras</title>
   <link rel="stylesheet" href="./styles.css" />
+  <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin />
+  <link rel="modulepreload" href="https://cdn.jsdelivr.net/npm/@owlbear-rodeo/sdk@3.1.0/+esm" crossorigin />
+  <script>
+    // Buffer do handshake: o host envia OBR_READY uma única vez.
+    // O SDK (importado como módulo estático) recebe uma repetição se o download atrasar.
+    window.__OBR_READY_BUFFER__ = null;
+    window.addEventListener("message", function (event) {
+      if (event.source !== window.parent || !event.data || event.data.id !== "OBR_READY") return;
+      window.__OBR_READY_BUFFER__ = {
+        data: event.data,
+        origin: event.origin,
+        replayed: false
+      };
+    });
+  </script>
   <style>
     html,body{margin:0;width:100%;height:100%;background:#080a0d;color:#e8edf3;font-family:system-ui,sans-serif}
     #app{height:100%;min-height:0}
