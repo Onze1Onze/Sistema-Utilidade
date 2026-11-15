@@ -2,9 +2,9 @@
 
 Extensão para Owlbear Rodeo com três minijogos controlados pelo mestre: abrir fechadura, hacking de matriz e painel numérico.
 
-## Instalação — versão 1.0.3
+## Instalação — versão 1.0.4
 
-O manifesto atualizado está no repositório:
+Use o manifesto da branch principal:
 `https://cdn.jsdelivr.net/gh/Onze1Onze/Sistema-Utilidade@main/manifest.json`
 
 1. No Owlbear Rodeo, abra **Extras → Extensions → Add**.
@@ -25,16 +25,24 @@ O HTML registra um listener inline antes dos módulos e guarda o evento `OBR_REA
 - **Hacking:** matriz de códigos, sequência-alvo, seleção alternada entre coluna e linha e buffer configurável.
 - **Painel Numérico:** senha definida pelo mestre, teclado numérico e validação no processo de fundo do mestre.
 
+## Comunicação entre jogador e mestre
+
+A conexão usa o canal `com.onze11.sistema-utilidade/v1` do `OBR.broadcast`.
+
+1. O jogador envia uma tentativa para os demais participantes com `destination: "REMOTE"`, incluindo sessão, jogo e um `requestId` único.
+2. O processo de fundo do mestre assina o canal, identifica o remetente pelo `event.connectionId`, lê o segredo privado da sessão e valida a tentativa com `resolvePlayerAttempt`.
+3. A resposta é enviada por `REMOTE` com `targetConnectionId`; cada interface de jogador só aceita a resposta que corresponde à sua própria conexão, sessão e `requestId`.
+4. O resultado também é enviado com `destination: "LOCAL"` para atualizar a interface do mestre, que mostra quem tentou, a resposta e as tentativas restantes.
+5. O processamento é serializado para evitar que duas tentativas simultâneas sobrescrevam o estado secreto.
+
+A senha e o ângulo correto não são enviados aos metadados públicos da sala. Apenas a matriz e a sequência do hacking são públicas porque são pistas do desafio.
+
 ## Desenvolvimento e testes
 
-A lógica de geração do hacking está em `game-logic.js`. Os testes de lógica e de handshake podem ser executados com Node.js 20 ou superior:
+A lógica de validação está em `game-logic.js`. Execute com Node.js 20 ou superior:
 
 `npm test`
 
-A interface não exige etapa de compilação. O SDK é carregado da distribuição ESM do jsDelivr; os arquivos da extensão são estáticos.
+A suíte cobre geração de matrizes, validação das três modalidades, handshake do SDK, arbitragem de tentativas, entrega de resposta ao jogador e atualização visual do mestre. O GitHub Actions executa os testes em cada push e pull request.
 
-## Sincronização e privacidade
-
-O estado público mínimo da sessão fica nos metadados da sala. A senha numérica e o ângulo secreto da fechadura ficam no `localStorage` do dispositivo do mestre. As tentativas são enviadas por `OBR.broadcast` e validadas pelo processo de fundo do mestre. A senha não é incluída nos metadados públicos. A matriz e a sequência-alvo do hacking são visíveis para os jogadores porque fazem parte do desafio.
-
-A validação do painel e da fechadura depende do processo de fundo do Owlbear permanecer conectado na sessão do mestre. A extensão não usa servidor externo próprio.
+A interface não exige etapa de compilação. O SDK é importado da distribuição ESM do jsDelivr; os arquivos da extensão são estáticos.
