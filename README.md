@@ -35,7 +35,7 @@ A conexão usa o canal `com.onze11.sistema-utilidade/v1` do `OBR.broadcast`.
 4. O resultado também é enviado com `destination: "LOCAL"` para atualizar a interface do mestre, que mostra quem tentou, a resposta e as tentativas restantes.
 5. O processamento é serializado para evitar que duas tentativas simultâneas sobrescrevam o estado secreto.
 
-A senha numérica, a janela de precisão e o estado autoritativo dos pinos ficam no dispositivo do mestre e não são enviados aos metadados públicos da sala. A configuração pública contém apenas as velocidades/fases necessárias para animar os pinos no dispositivo do jogador e a faixa visual de acerto. Apenas a matriz e a sequência do hacking são públicas porque são pistas do desafio.
+A senha numérica, o estado autoritativo dos pinos e a quantidade de gazuas restantes ficam no dispositivo do mestre e não são enviados aos metadados públicos da sala. A configuração pública contém as velocidades/fases para animar cada pino e o limiar de precisão, que também define a faixa luminosa visível ao jogador. O mestre valida o clique contra sua cópia privada desse limiar. A matriz e a sequência do hacking são públicas porque são pistas do desafio.
 
 ## Desenvolvimento e testes
 
@@ -43,6 +43,6 @@ A lógica de validação está em `game-logic.js`. Execute com Node.js 20 ou sup
 
 `npm test`
 
-A suíte cobre geração de matrizes, validação das três modalidades, handshake do SDK, arbitragem de tentativas, entrega de resposta ao jogador e atualização visual do mestre. O GitHub Actions executa os testes em cada push e pull request.
+A suíte cobre geração de matrizes, temporização dos pinos, quebra de gazuas, conclusão de fechaduras, validação das três modalidades, handshake do SDK, arbitragem de tentativas, entrega de resposta ao jogador e atualização visual do mestre. O GitHub Actions executa os testes em cada push e pull request.
 
 A interface não exige etapa de compilação. O SDK é importado da distribuição ESM do jsDelivr; os arquivos da extensão são estáticos.
