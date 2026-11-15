@@ -8,6 +8,18 @@ const CHANNEL = "com.onze11.sistema-utilidade/v1";
 const META_KEY = "com.onze11.sistema-utilidade/session";
 const SECRET_PREFIX = "com.onze11.sistema-utilidade/secret/";
 
+async function importModuleWithTimeout(url, milliseconds = 12000) {
+  let timer;
+  try {
+    return await Promise.race([
+      import(url),
+      new Promise((_, reject) => { timer = setTimeout(() => reject(new Error("Tempo esgotado ao carregar o SDK de fundo.")), milliseconds); })
+    ]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 function normalizePin(value) {
   return String(value ?? "").replace(/[^0-9]/g, "").slice(0, 8);
 }
@@ -56,10 +68,7 @@ async function boot() {
   let error=null;
   for(const url of urls){
     try{
-      module=await Promise.race([
-        import(url),
-        new Promise((_,reject)=>setTimeout(()=>reject(new Error("Tempo esgotado ao carregar o SDK de fundo.")),12000))
-      ]);
+      module=await importModuleWithTimeout(url);
       if(module?.default?.onReady) break;
       module=null;
       throw new Error("SDK de fundo sem exportação OBR.");
