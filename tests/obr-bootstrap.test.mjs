@@ -96,3 +96,46 @@ test("ambas as páginas usam import estático do SDK 3.1.0", () => {
   assert.doesNotMatch(backgroundJs, /import\s*\(/);
   assert.match(backgroundHtml, /window\.__OBR_READY_BUFFER__/);
 });
+
+test("OBR.onReady executa depois que o evento buffered é reproduzido", () => {
+  const replayCode = appJs.match(/function replayBufferedOwlbearReady\\(\\) \\{[\\s\\S]*?\\n\\}/)?.[0];
+  assert.ok(replayCode);
+  const parent = {};
+  const listeners = [];
+  const windowMock = {
+    __OBR_READY_BUFFER__: {
+      data: { id: "OBR_READY", data: { userId: "gm", ref: "nonce" } },
+      origin: "https://www.owlbear.rodeo",
+      replayed: false
+    },
+    addEventListener(type, callback) {
+      if (type === "message") listeners.push(callback);
+    },
+    dispatchEvent(event) {
+      for (const callback of listeners) callback(event);
+      return true;
+    }
+  };
+  let sdkReady = false;
+  windowMock.addEventListener("message", (event) => {
+    if (event.origin === "https://www.owlbear.rodeo" && event.data?.id === "OBR_READY") sdkReady = true;
+  });
+  class MockMessageEvent {
+    constructor(type, options) {
+      this.type = type;
+      this.data = options.data;
+      this.origin = options.origin;
+    }
+  }
+  vm.runInNewContext(replayCode + "\\nreplayBufferedOwlbearReady();", {
+    OBR: { isReady: false },
+    window: windowMock,
+    MessageEvent: MockMessageEvent
+  });
+  let readyCallbackRan = false;
+  const onReady = (callback) => {
+    if (sdkReady) callback();
+  };
+  onReady(() => { readyCallbackRan = true; });
+  assert.equal(readyCallbackRan, true);
+});
