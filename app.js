@@ -325,8 +325,6 @@ OBR.onReady(async () => {
     }
     state.role = await OBR.player.getRole();
     connectionId = await OBR.player.getConnectionId();
-    sdkReady = true;
-    sdkError = null;
     OBR.room.onMetadataChange((metadata) => acceptSession(metadata?.[META_KEY] ?? null));
     OBR.broadcast.onMessage(CHANNEL, onMessage);
     const initialMetadata = await OBR.room.getMetadata();
@@ -337,6 +335,8 @@ OBR.onReady(async () => {
     state.waiting = false;
     state.picksLeft = state.session?.publicConfig?.picks ?? 0;
     state.notice = "";
+    sdkReady = true;
+    sdkError = null;
     render();
     completeSdkInit({ok:true});
   } catch (error) {
