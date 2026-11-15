@@ -1,8 +1,22 @@
 import OBR from "https://cdn.jsdelivr.net/npm/@owlbear-rodeo/sdk@3.1.0/+esm";
 
-// A interface não depende da rede para aparecer. O SDK é carregado em segundo plano.
+// A interface é renderizada antes da conexão; o SDK estático registra OBR_READY no carregamento do módulo.
 let sdkReady = false;
 let sdkError = null;
+let sdkInitResult = null;
+let resolveSdkInit;
+const sdkInitPromise = new Promise((resolve) => { resolveSdkInit = resolve; });
+function completeSdkInit(result) {
+  if (sdkInitResult !== null) return;
+  sdkInitResult = result;
+  resolveSdkInit(result);
+}
+async function ensureObrReady() {
+  if (sdkReady && OBR.isReady) return OBR;
+  const result = await sdkInitPromise;
+  if (!result?.ok) throw result?.error || new Error("O Owlbear não concluiu a inicialização.");
+  return OBR;
+}
 const META_KEY = "com.onze11.sistema-utilidade/session";
 const CHANNEL = "com.onze11.sistema-utilidade/v1";
 const SECRET_PREFIX = "com.onze11.sistema-utilidade/secret/";
@@ -238,7 +252,7 @@ root.addEventListener("input", (event) => {
 });
 async function publish() {
   try {
-    if (!sdkReady || !OBR) throw new Error("Owlbear SDK ainda não está conectado. Reabra a extensão.");
+    await ensureObrReady();
     let game, publicConfig, secret;
     if (state.mode === "lock") { game="lock"; publicConfig={picks:state.picks}; secret={targetAngle:Math.floor(Math.random()*360),tolerance:state.tolerance,picksLeft:state.picks}; }
     else if (state.mode === "hack") { game="hack"; const puzzle=makeHackPuzzle({rows:state.rows,columns:state.columns,sequenceLength:state.length}); publicConfig={puzzle}; secret={puzzle}; }
@@ -250,15 +264,17 @@ async function publish() {
   } catch(error) { showNotice(error.message || "Não foi possível publicar o desafio."); OBR?.notification?.show?.(error.message || "Não foi possível publicar o desafio.","ERROR"); }
 }
 async function endSession() {
-  if (!sdkReady || !OBR) { showNotice("Conectando ao Owlbear Rodeo. Tente novamente em instantes."); return; }
+  try { await ensureObrReady(); }
+  catch (error) { showNotice(error.message || "O Owlbear não está conectado."); return; }
   const id=state.session?.sessionId;
   await OBR.room.setMetadata({[META_KEY]:{status:"idle",sessionId:null,endedAt:Date.now()}});
   if(id) localStorage.removeItem(SECRET_PREFIX+id);
   OBR.notification.show("Minijogo encerrado","INFO");
 }
 async function sendAttempt(attempt) {
-  if (!sdkReady || !OBR) { state.result={success:false,responseText:"Conexão com o Owlbear indisponível. Reabra a extensão.",finished:false}; render(); return; }
   if(state.waiting || state.result?.finished) return;
+  try { await ensureObrReady(); }
+  catch (error) { state.result={success:false,responseText:error.message || "Conexão com o Owlbear indisponível.",finished:false}; render(); return; }
   state.waiting=true; state.result=null; render();
   clearTimeout(timeout);
   timeout=setTimeout(()=>{state.waiting=false;state.result={success:false,responseText:"Sem resposta do mestre. Verifique a conexão e tente novamente."};render();},WAIT_MS);
@@ -297,6 +313,7 @@ let readyTimeout = setTimeout(() => {
     ? "O Owlbear ainda não enviou OBR_READY."
     : "A URL da extensão chegou sem o parâmetro obrref do Owlbear.";
   sdkError = new Error(detail);
+  completeSdkInit({ok:false,error:sdkError});
   showNotice("Interface pronta, mas a integração não foi inicializada. " + detail);
 }, 12000);
 
@@ -321,9 +338,11 @@ OBR.onReady(async () => {
     state.picksLeft = state.session?.publicConfig?.picks ?? 0;
     state.notice = "";
     render();
+    completeSdkInit({ok:true});
   } catch (error) {
     sdkReady = false;
     sdkError = error;
+    completeSdkInit({ok:false,error});
     console.error("[Sistema de Fechaduras] Falha ao conectar ao Owlbear:", error);
     showNotice("A interface abriu, mas a conexão com Owlbear falhou: " + (error?.message || "erro desconhecido"));
   }
