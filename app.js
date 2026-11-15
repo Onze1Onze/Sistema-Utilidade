@@ -77,7 +77,7 @@ function makeHackPuzzle(config, random = Math.random) {
 }
 
 const root = document.querySelector("#app");
-const state = { role: "GM", session: null, mode: "lock", collapsed: false, advanced: false, tolerance: 19, picks: 5, rows: 5, columns: 7, length: 4, pin: "", angle: 0, path: [], pinInput: "", waiting: false, result: null, picksLeft: 0, notice: "" };
+const state = { role: "GM", session: null, mode: "lock", collapsed: false, advanced: false, tolerance: 19, picks: 5, rows: 5, columns: 7, length: 4, pin: "", angle: 0, path: [], pinInput: "", waiting: false, result: null, picksLeft: 0, notice: "", lastAttempt: null, pendingRequestId: null };
 let connectionId = "";
 let timeout = null;
 const WAIT_MS = 10000;
@@ -93,6 +93,8 @@ function acceptSession(session) {
   state.result = null;
   state.waiting = false;
   state.picksLeft = session?.publicConfig?.picks ?? 0;
+  state.lastAttempt = null;
+  state.pendingRequestId = null;
   clearTimeout(timeout);
   render();
 }
@@ -132,7 +134,10 @@ function validPublicSession(session) {
 }
 function masterActive() {
   const label = state.session.game === "lock" ? "ABRIR FECHADURA" : state.session.game === "hack" ? "HACKING" : "PAINEL NUMÉRICO";
-  return '<div class="heading"><div><h1>' + label + '</h1><p>Desafio liberado para os jogadores.</p></div><span class="tag">ATIVO</span></div><section class="card active-card"><div class="big-mark">✓</div><h2>Desafio em andamento</h2><p>Os jogadores estão vendo o minijogo. Encerre a sessão para preparar outro desafio.</p><button class="danger" data-action="end">Encerrar minijogo</button></section>';
+  const activity = state.lastAttempt
+    ? '<section class="gm-attempt ' + escapeHTML(state.lastAttempt.status || "processing") + '"><div class="gm-attempt-head"><b>' + escapeHTML(state.lastAttempt.playerLabel || "JOGADOR") + '</b><span>' + escapeHTML(state.lastAttempt.statusLabel || "PROCESSANDO") + '</span></div><p>' + escapeHTML(state.lastAttempt.responseText || "Tentativa recebida.") + '</p>' + (state.lastAttempt.remaining !== null && state.lastAttempt.remaining !== undefined ? '<small>TENTATIVAS RESTANTES: ' + Number(state.lastAttempt.remaining) + '</small>' : '') + '</section>'
+    : '<section class="gm-attempt idle"><div class="gm-attempt-head"><b>JOGADORES</b><span>AGUARDANDO</span></div><p>Aguardando a primeira tentativa.</p></section>';
+  return '<div class="heading"><div><h1>' + label + '</h1><p>Desafio liberado para os jogadores.</p></div><span class="tag">ATIVO</span></div><section class="card active-card"><div class="big-mark">✓</div><h2>Desafio em andamento</h2><p>As tentativas dos jogadores aparecerão aqui.</p>' + activity + '<button class="danger" data-action="end">Encerrar minijogo</button></section>';
 }
 function masterConfig() {
   let body = state.mode === "lock" ? lockConfig() : state.mode === "hack" ? hackConfig() : pinConfig();
@@ -275,17 +280,67 @@ async function sendAttempt(attempt) {
   if(state.waiting || state.result?.finished) return;
   try { await ensureObrReady(); }
   catch (error) { state.result={success:false,responseText:error.message || "Conexão com o Owlbear indisponível.",finished:false}; render(); return; }
+  const requestId = createSessionId();
+  state.pendingRequestId = requestId;
   state.waiting=true; state.result=null; render();
   clearTimeout(timeout);
-  timeout=setTimeout(()=>{state.waiting=false;state.result={success:false,responseText:"Sem resposta do mestre. Verifique a conexão e tente novamente."};render();},WAIT_MS);
-  try { await OBR.broadcast.sendMessage(CHANNEL,{type:"attempt",sessionId:state.session.sessionId,...attempt}); }
-  catch(error){clearTimeout(timeout);state.waiting=false;state.result={success:false,responseText:"Falha de conexão. Tente novamente."};render();}
+  timeout=setTimeout(()=>{
+    state.waiting=false;
+    state.pendingRequestId=null;
+    state.result={success:false,responseText:"O mestre não respondeu. Confirme se a extensão dele continua aberta e tente novamente.",finished:false};
+    render();
+  },WAIT_MS);
+  try {
+    await OBR.broadcast.sendMessage(CHANNEL,{
+      type:"attempt",
+      requestId,
+      sessionId:state.session.sessionId,
+      game:state.session.game,
+      ...attempt
+    },{destination:"REMOTE"});
+  } catch(error){
+    clearTimeout(timeout); timeout=null;
+    state.waiting=false; state.pendingRequestId=null;
+    state.result={success:false,responseText:"Não foi possível enviar a tentativa. Verifique a conexão.",finished:false};
+    render();
+  }
 }
 async function onMessage(event) {
   const message=event?.data;
-  if(!message || message.type!=="result" || message.targetConnectionId!==connectionId) return;
+  if(!message || typeof message!=="object") return;
+
+  if(state.role==="GM"){
+    if(message.sessionId!==state.session?.sessionId || message.game!==state.session?.game) return;
+    if(message.type==="attempt"){
+      state.lastAttempt={
+        status:"processing",
+        statusLabel:"RECEBIDA",
+        playerLabel:"JOGADOR · "+String(event.connectionId || "").slice(-6),
+        responseText:"Tentativa recebida. Aguardando validação.",
+        remaining:null,
+        requestId:message.requestId
+      };
+      render();
+      return;
+    }
+    if(message.type==="master-status"){
+      state.lastAttempt={
+        status:message.success?"success":(message.finished?"failed":"error"),
+        statusLabel:message.success?"DESTRANCADO":(message.finished?"ENCERRADO":"TENTATIVA"),
+        playerLabel:"JOGADOR · "+String(message.playerConnectionId || event.connectionId || "").slice(-6),
+        responseText:String(message.responseText || "Tentativa processada."),
+        remaining:message.remaining,
+        requestId:message.requestId
+      };
+      render();
+    }
+    return;
+  }
+
+  if(message.type!=="result" || message.targetConnectionId!==connectionId) return;
   if(message.sessionId!==state.session?.sessionId || message.game!==state.session?.game) return;
-  clearTimeout(timeout); timeout=null; state.waiting=false; state.result=message;
+  if(state.pendingRequestId && message.requestId!==state.pendingRequestId) return;
+  clearTimeout(timeout); timeout=null; state.waiting=false; state.pendingRequestId=null; state.result=message;
   if(message.remaining!==null && message.remaining!==undefined) state.picksLeft=message.remaining;
   render();
 }
