@@ -171,6 +171,7 @@ function validPublicSession(session) {
     const config = session.publicConfig;
     return Number.isInteger(config?.picks) && config.picks >= 1 && config.picks <= 15
       && Number.isInteger(config?.pinCount) && config.pinCount >= 3 && config.pinCount <= 8
+      && Number.isFinite(config.hitThreshold) && config.hitThreshold >= 0.70 && config.hitThreshold <= 0.98
       && Array.isArray(config.pins) && config.pins.length === config.pinCount
       && config.pins.every((pin) => Number.isInteger(pin.cycleDurationMs)
         && pin.cycleDurationMs >= 650 && pin.cycleDurationMs <= 3400
@@ -244,12 +245,13 @@ function lockPlayer() {
   const pins = config.pins || [];
   const locked = state.lockedPins || [];
   const lockedCount = locked.filter(Boolean).length;
+  const targetHeight = Math.max(2, (1 - config.hitThreshold) * 100).toFixed(1);
   const pinMarkup = pins.map((pin, index) => {
     const isLocked = Boolean(locked[index]);
     const disabled = isLocked || state.waiting || state.result?.finished;
     return '<button type="button" class="lock-pin ' + (isLocked ? "locked" : "") + '" data-pin-index="' + index + '" ' + (disabled ? "disabled" : "") + ' aria-label="Pino ' + (index + 1) + (isLocked ? ", travado" : ", pressione quando atingir o topo na subida") + '">' +
       '<span class="lock-pin-label">PINO ' + String(index + 1).padStart(2, "0") + '</span>' +
-      '<span class="lock-pin-track"><i class="lock-pin-target"></i><i class="lock-pin-slot"></i><i class="lock-tumbler"><b></b></i></span>' +
+      '<span class="lock-pin-track"><i class="lock-pin-target" style="height:' + targetHeight + '%"></i><i class="lock-pin-slot"></i><i class="lock-tumbler"><b></b></i></span>' +
       '<span class="lock-pin-state">' + (isLocked ? "TRAVADO" : "EM MOVIMENTO") + '</span></button>';
   }).join("");
   const picks = Array.from({ length: config.picks }, (_, index) =>
@@ -389,6 +391,7 @@ async function publish() {
       publicConfig={
         pinCount:puzzle.pinCount,
         picks:puzzle.picks,
+        hitThreshold:puzzle.hitThreshold,
         pins:puzzle.pins.map((pin)=>({...pin}))
       };
       secret={
