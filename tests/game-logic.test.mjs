@@ -102,7 +102,7 @@ test("painel numérico distingue senha errada, comprimento e sucesso", () => {
   const wrong = resolvePlayerAttempt(session, secret, { sessionId:"pin-1", game:"pin", kind:"pin", code:"1111" });
   assert.equal(wrong.success,false);
   assert.equal(wrong.finished,false);
-  const correct = resolvePlayerAttempt(session, secret, { sessionId:"pin-1", game:"pin", kind:"pin", code:"24-68" });
+  const correct = resolvePlayerAttempt(session, secret, { sessionId:"pin-1", game:"pin", kind:"pin", code:"48-26" });
   assert.equal(correct.success,true);
   assert.equal(correct.finished,true);
 });
