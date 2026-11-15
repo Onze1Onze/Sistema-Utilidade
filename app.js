@@ -4,7 +4,6 @@ import { META_KEY, CHANNEL, SECRET_PREFIX, LOCK_PRESETS, HACK_PRESETS, makeHackP
 const root = document.querySelector("#app");
 const state = { role: "PLAYER", session: null, mode: "lock", collapsed: false, advanced: false, tolerance: 19, picks: 5, rows: 5, columns: 7, length: 4, pin: "", angle: 0, path: [], pinInput: "", waiting: false, result: null, picksLeft: 0 };
 let connectionId = "";
-let gmConnectionId = null;
 let timeout = null;
 const WAIT_MS = 10000;
 
@@ -12,10 +11,6 @@ OBR.onReady(async () => {
   try {
     state.role = await OBR.player.getRole();
     connectionId = await OBR.player.getConnectionId();
-    if (state.role === "PLAYER") {
-      await findGM();
-      OBR.party.onChange(findGM);
-    }
     OBR.room.onMetadataChange((metadata) => acceptSession(metadata?.[META_KEY] ?? null));
     OBR.broadcast.onMessage(CHANNEL, onMessage);
     acceptSession((await OBR.room.getMetadata())?.[META_KEY] ?? null);
@@ -25,12 +20,6 @@ OBR.onReady(async () => {
   }
 });
 
-async function findGM() {
-  try {
-    const players = await OBR.party.getPlayers();
-    gmConnectionId = players.find((p) => p.role === "GM")?.connectionId ?? null;
-  } catch (error) { console.warn("Não foi possível localizar o mestre.", error); }
-}
 function acceptSession(session) {
   if (JSON.stringify(session) === JSON.stringify(state.session)) return;
   state.session = session;
