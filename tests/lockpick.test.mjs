@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { createLockPuzzle, getLockPinMotion, resolvePlayerAttempt } from "../game-logic.js";
+import { createLockPuzzle, getLockPinMotion, resolvePlayerAttempt, LOCK_PRESETS } from "../game-logic.js";
 
 function seeded(seed) {
   let n=seed>>>0;
@@ -106,3 +106,12 @@ test("um pino já travado não consome outra gazua", () => {
   assert.match(result.responseText,/já está travado/i);
 });
 
+
+test("os cinco presets aumentam a exigência e alteram velocidade e quantidade de pinos", () => {
+  assert.equal(LOCK_PRESETS[1].pinCount,3);
+  assert.equal(LOCK_PRESETS[5].pinCount,7);
+  assert.ok(LOCK_PRESETS[1].picks > LOCK_PRESETS[5].picks);
+  assert.ok(LOCK_PRESETS[1].lockPrecision < LOCK_PRESETS[5].lockPrecision);
+  assert.ok(LOCK_PRESETS[1].lockCycleMs > LOCK_PRESETS[5].lockCycleMs);
+  assert.ok(LOCK_PRESETS[1].lockSpeedVariation < LOCK_PRESETS[5].lockSpeedVariation);
+});
