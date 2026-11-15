@@ -1,5 +1,24 @@
 <!doctype html>
 <html lang="pt-BR">
-<head><meta charset="UTF-8" /><meta name="viewport" content="width=device-width,initial-scale=1" /><title>Fechaduras — sincronização</title></head>
-<body><script type="module" src="./background.js"></script></body>
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Fechaduras — sincronização</title>
+  <script>
+    // Buffer do handshake para não perder o único OBR_READY enviado pelo Owlbear.
+    window.__OBR_READY_BUFFER__ = null;
+    window.addEventListener("message", function (event) {
+      if (event.source !== window.parent || !event.data || event.data.id !== "OBR_READY") return;
+      window.__OBR_READY_BUFFER__ = {
+        data: event.data,
+        origin: event.origin,
+        replayed: false
+      };
+    });
+  </script>
+  <link rel="modulepreload" href="https://cdn.jsdelivr.net/npm/@owlbear-rodeo/sdk@3.1.0/+esm" crossorigin />
+</head>
+<body>
+  <script type="module" src="./background.js"></script>
+</body>
 </html>
