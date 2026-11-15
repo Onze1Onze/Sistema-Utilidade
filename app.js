@@ -309,7 +309,13 @@ async function bootOwlbear() {
   sdkError = null;
   OBR.room.onMetadataChange((metadata) => acceptSession(metadata?.[META_KEY] ?? null));
   OBR.broadcast.onMessage(CHANNEL, onMessage);
-  acceptSession((await OBR.room.getMetadata())?.[META_KEY] ?? null);
+  const initialMetadata = await OBR.room.getMetadata();
+  state.session = initialMetadata?.[META_KEY] ?? null;
+  state.path = [];
+  state.pinInput = "";
+  state.result = null;
+  state.waiting = false;
+  state.picksLeft = state.session?.publicConfig?.picks ?? 0;
   state.notice = "";
   render();
 }
