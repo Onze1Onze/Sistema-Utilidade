@@ -130,6 +130,80 @@ export function validateHackAttempt(path, puzzle) {
   return values.every((value, index) => value === puzzle.target[index]);
 }
 
+export function resolvePlayerAttempt(session, secret, message) {
+  if (!session || session.status !== "active" || !message
+    || session.sessionId !== message.sessionId
+    || session.game !== message.game
+    || !secret || secret.game !== session.game) return null;
+
+  const nextSecret = { ...secret };
+  if (nextSecret.finished) {
+    return {
+      success: false,
+      responseText: "Este desafio já foi concluído ou esgotado.",
+      remaining: Number.isInteger(nextSecret.picksLeft) ? nextSecret.picksLeft : null,
+      finished: true,
+      secret: nextSecret
+    };
+  }
+
+  let success = false;
+  let responseText = "";
+  let remaining = null;
+
+  if (session.game === "lock" && message.kind === "lock") {
+    if (!Number.isFinite(message.angle) || message.angle < 0 || message.angle >= 360
+      || !Number.isFinite(nextSecret.targetAngle) || nextSecret.targetAngle < 0 || nextSecret.targetAngle >= 360
+      || !Number.isFinite(nextSecret.tolerance) || nextSecret.tolerance < 0 || nextSecret.tolerance > 45
+      || !Number.isInteger(nextSecret.picksLeft) || nextSecret.picksLeft < 1) return null;
+    success = validateLockAttempt(message.angle, nextSecret.targetAngle, nextSecret.tolerance);
+    if (success) {
+      responseText = "Fechadura destrancada.";
+      nextSecret.finished = true;
+    } else {
+      nextSecret.picksLeft = Math.max(0, nextSecret.picksLeft - 1);
+      remaining = nextSecret.picksLeft;
+      responseText = remaining > 0
+        ? "A ferramenta cedeu. Ajuste a posição."
+        : "A ferramenta quebrou. A fechadura resistiu.";
+      if (remaining === 0) nextSecret.finished = true;
+    }
+  } else if (session.game === "hack" && message.kind === "hack") {
+    const puzzle = nextSecret.puzzle;
+    if (!Array.isArray(message.path)
+      || !message.path.every((cell) => Array.isArray(cell) && cell.length === 2 && cell.every(Number.isInteger))
+      || !puzzle || !Array.isArray(puzzle.board) || !Array.isArray(puzzle.target)) return null;
+    success = validateHackAttempt(message.path, puzzle);
+    responseText = success ? "Acesso concedido." : "Sequência rejeitada. Tente novamente.";
+    if (success) nextSecret.finished = true;
+  } else if (session.game === "pin" && message.kind === "pin") {
+    if (typeof nextSecret.code !== "string" || nextSecret.code.length < 3 || nextSecret.code.length > 8) return null;
+    const candidate = normalizePin(message.code);
+    if (!candidate || candidate.length !== nextSecret.code.length) {
+      return {
+        success: false,
+        responseText: "O código precisa ter " + nextSecret.code.length + " dígitos.",
+        remaining: null,
+        finished: false,
+        secret: nextSecret
+      };
+    }
+    success = candidate === nextSecret.code;
+    responseText = success ? "Código correto. Acesso liberado." : "Código incorreto.";
+    if (success) nextSecret.finished = true;
+  } else {
+    return null;
+  }
+
+  return {
+    success,
+    responseText,
+    remaining,
+    finished: Boolean(nextSecret.finished),
+    secret: nextSecret
+  };
+}
+
 export function normalizePin(value) {
   return String(value ?? "").replace(/\D/g, "").slice(0, 8);
 }
