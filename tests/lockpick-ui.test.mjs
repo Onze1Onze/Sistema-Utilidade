@@ -27,7 +27,7 @@ test("a animação e o clique usam a mesma função de movimento por pino", () =
 
 test("a faixa visual de acerto é dimensionada pela precisão configurada", () => {
   assert.match(app, /const targetHeight = Math\.max\(2, \(1 - config\.hitThreshold\) \* 100\)/);
-  assert.match(app, /style:height:/);
+  assert.match(app, /style="height:/);
   assert.match(css, /\.lock-pin-target/);
 });
 
