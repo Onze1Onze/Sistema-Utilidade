@@ -120,6 +120,59 @@ test("tentativa incorreta recebe resposta e aparece no mestre sem encerrar o des
   assert.equal(playerReply?.data.requestId,"request-002");
 });
 
+test("o árbitro transmite o pino travado e o progresso ao jogador e ao mestre", async () => {
+  const session = {
+    status:"active",
+    sessionId:"lock-room",
+    game:"lock",
+    publicConfig:{
+      pinCount:3,
+      picks:4,
+      hitThreshold:0.9,
+      pins:[
+        {cycleDurationMs:1100,phaseOffsetMs:100},
+        {cycleDurationMs:1400,phaseOffsetMs:350},
+        {cycleDurationMs:1750,phaseOffsetMs:600}
+      ]
+    }
+  };
+  const secret = {
+    game:"lock",
+    pins:session.publicConfig.pins,
+    hitThreshold:0.9,
+    picksLeft:4,
+    lockedPins:[false,false,false],
+    finished:false
+  };
+  const {messageHandler,sent,storage}=await bootBackground({session,secret});
+  messageHandler({
+    connectionId:"player-lock-777",
+    data:{
+      type:"attempt",
+      requestId:"lock-request-1",
+      sessionId:"lock-room",
+      game:"lock",
+      kind:"lock-pin",
+      pinIndex:1,
+      position:0.96,
+      rising:true
+    }
+  });
+  await new Promise((resolve)=>setTimeout(resolve,25));
+
+  const playerReply=sent.find((entry)=>entry.data.type==="result");
+  const masterStatus=sent.find((entry)=>entry.data.type==="master-status");
+  assert.equal(playerReply?.data.success,true);
+  assert.equal(playerReply?.data.lockedCount,1);
+  assert.equal(playerReply?.data.pinCount,3);
+  assert.deepEqual(playerReply?.data.lockedPins,[false,true,false]);
+  assert.equal(playerReply?.options.destination,"REMOTE");
+  assert.deepEqual(masterStatus?.data.lockedPins,[false,true,false]);
+  assert.equal(masterStatus?.data.lockedCount,1);
+  assert.equal(masterStatus?.options.destination,"LOCAL");
+  assert.deepEqual(JSON.parse(storage.get(SECRET_PREFIX+"lock-room")).lockedPins,[false,true,false]);
+});
+
 test("interface do mestre mostra tentativa recebida e resultado processado", async () => {
   const handlerSource = appSource.match(/async function onMessage\(event\) \{[\s\S]*?\n\}/)?.[0];
   assert.ok(handlerSource, "onMessage precisa existir na interface");
