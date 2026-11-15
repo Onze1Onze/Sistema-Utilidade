@@ -18,12 +18,15 @@ function solve(puzzle) {
       return values.every((v,i) => v === puzzle.target[i]) ? path : null;
     }
     const candidates = [];
-    if (!index) {
+    if (index === 0) {
       for (let r=0;r<puzzle.rows;r++) for(let c=0;c<puzzle.columns;c++) candidates.push([r,c]);
     } else {
       const [pr,pc] = path[index-1];
-      if (index % 2) for(let r=0;r<puzzle.rows;r++) if(r!==pr) candidates.push([r,pc]);
-      else for(let c=0;c<puzzle.columns;c++) if(c!==pc) candidates.push([pr,c]);
+      if (index % 2 === 1) {
+        for(let r=0;r<puzzle.rows;r++) if(r!==pr) candidates.push([r,pc]);
+      } else {
+        for(let c=0;c<puzzle.columns;c++) if(c!==pc) candidates.push([pr,c]);
+      }
     }
     for (const cell of candidates) {
       const key=cell.join(":");
