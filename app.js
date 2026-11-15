@@ -1,4 +1,5 @@
 import OBR from "https://cdn.jsdelivr.net/npm/@owlbear-rodeo/sdk@3.1.0/+esm";
+import { createLockPuzzle, getLockPinMotion, LOCK_PRESETS } from "./game-logic.js";
 
 // A interface é renderizada antes da conexão; o SDK estático registra OBR_READY no carregamento do módulo.
 let sdkReady = false;
@@ -20,13 +21,6 @@ async function ensureObrReady() {
 const META_KEY = "com.onze11.sistema-utilidade/session";
 const CHANNEL = "com.onze11.sistema-utilidade/v1";
 const SECRET_PREFIX = "com.onze11.sistema-utilidade/secret/";
-const LOCK_PRESETS = {
-  1: { tolerance: 34, picks: 7 },
-  2: { tolerance: 26, picks: 6 },
-  3: { tolerance: 19, picks: 5 },
-  4: { tolerance: 12, picks: 4 },
-  5: { tolerance: 7, picks: 3 }
-};
 const HACK_PRESETS = {
   1: { rows: 4, columns: 6, sequenceLength: 3 },
   2: { rows: 5, columns: 6, sequenceLength: 3 },
@@ -77,22 +71,36 @@ function makeHackPuzzle(config, random = Math.random) {
 }
 
 const root = document.querySelector("#app");
-const state = { role: "GM", session: null, mode: "lock", collapsed: false, advanced: false, tolerance: 19, picks: 5, rows: 5, columns: 7, length: 4, pin: "", angle: 0, path: [], pinInput: "", waiting: false, result: null, picksLeft: 0, notice: "", lastAttempt: null, pendingRequestId: null };
+const state = {
+  role: "GM", session: null, mode: "lock", collapsed: false, advanced: false,
+  pinCount: 5, picks: 7, lockPrecision: 88, lockCycleMs: 1350, lockSpeedVariation: 650,
+  rows: 5, columns: 7, length: 4, pin: "", path: [], pinInput: "",
+  waiting: false, result: null, picksLeft: 0, lockedPins: [], notice: "",
+  lastAttempt: null, pendingRequestId: null, lockStartedAt: 0
+};
 let connectionId = "";
 let timeout = null;
+let lockAnimationFrame = null;
 const WAIT_MS = 10000;
 
 
 // A inicialização antiga é substituída por bootOwlbear(), chamado depois de renderizar.
 
-function acceptSession(session) {
-  if (JSON.stringify(session) === JSON.stringify(state.session)) return;
-  state.session = session;
+function resetPlayerSessionState(session) {
   state.path = [];
   state.pinInput = "";
   state.result = null;
   state.waiting = false;
   state.picksLeft = session?.publicConfig?.picks ?? 0;
+  state.lockedPins = session?.game === "lock"
+    ? Array.from({ length: session.publicConfig.pinCount }, () => false)
+    : [];
+  state.lockStartedAt = typeof performance !== "undefined" ? performance.now() : Date.now();
+}
+function acceptSession(session) {
+  if (JSON.stringify(session) === JSON.stringify(state.session)) return;
+  state.session = session;
+  resetPlayerSessionState(session);
   state.lastAttempt = null;
   state.pendingRequestId = null;
   clearTimeout(timeout);
@@ -107,19 +115,67 @@ function nav(mode, symbol, label) {
   return '<button class="nav ' + (state.mode === mode ? "active" : "") + '" data-mode="' + mode + '"><b>' + symbol + '</b><span>' + label + '</span><i>›</i></button>';
 }
 function render() {
+  stopLockAnimation();
   if (state.role === "GM") {
     root.innerHTML = shell(state.session?.status === "active" ? masterActive() : masterConfig());
     return;
   }
   if (!validPublicSession(state.session)) { root.innerHTML = ""; return; }
   root.innerHTML = playerShell(playerGame());
+  if (state.session.game === "lock") startLockAnimation();
+}
+function stopLockAnimation() {
+  if (lockAnimationFrame !== null && typeof cancelAnimationFrame === "function") {
+    cancelAnimationFrame(lockAnimationFrame);
+  }
+  lockAnimationFrame = null;
+}
+function startLockAnimation() {
+  if (typeof requestAnimationFrame !== "function") return;
+  const update = () => {
+    if (state.role !== "PLAYER" || state.session?.game !== "lock") {
+      lockAnimationFrame = null;
+      return;
+    }
+    const pins = state.session.publicConfig.pins || [];
+    const elapsed = (typeof performance !== "undefined" ? performance.now() : Date.now()) - state.lockStartedAt;
+    root.querySelectorAll(".lock-pin[data-pin-index]").forEach((button) => {
+      const index = Number(button.dataset.pinIndex);
+      const pin = pins[index];
+      if (!pin || state.lockedPins[index]) return;
+      const track = button.querySelector(".lock-pin-track");
+      const tumbler = button.querySelector(".lock-tumbler");
+      if (!track || !tumbler) return;
+      const motion = getLockPinMotion(pin, elapsed);
+      const travel = Math.max(0, track.clientHeight - tumbler.offsetHeight - 12);
+      tumbler.style.transform = "translateY(-" + (motion.position * travel).toFixed(2) + "px)";
+      button.dataset.rising = String(motion.rising);
+      button.dataset.position = motion.position.toFixed(3);
+    });
+    lockAnimationFrame = requestAnimationFrame(update);
+  };
+  update();
+}
+function getCurrentLockPinMotion(pinIndex) {
+  const pin = state.session?.publicConfig?.pins?.[pinIndex];
+  if (!pin) return { position: 0, rising: false };
+  const now = typeof performance !== "undefined" ? performance.now() : Date.now();
+  return getLockPinMotion(pin, now - state.lockStartedAt);
 }
 function playerShell(content) {
   return '<section class="frame player-frame"><header class="top"><span class="mark"></span><span>TERMINAL DE ACESSO</span><span class="lights">▰ ▰ ▰ ▰</span></header><main class="player-content"><div class="content-inner">' + noticeMarkup() + content + '</div></main><footer>ESC  Fechar</footer></section>';
 }
 function validPublicSession(session) {
   if (!session || session.status !== "active" || typeof session.sessionId !== "string") return false;
-  if (session.game === "lock") return Number.isInteger(session.publicConfig?.picks) && session.publicConfig.picks >= 1 && session.publicConfig.picks <= 10;
+  if (session.game === "lock") {
+    const config = session.publicConfig;
+    return Number.isInteger(config?.picks) && config.picks >= 1 && config.picks <= 15
+      && Number.isInteger(config?.pinCount) && config.pinCount >= 3 && config.pinCount <= 8
+      && Array.isArray(config.pins) && config.pins.length === config.pinCount
+      && config.pins.every((pin) => Number.isInteger(pin.cycleDurationMs)
+        && pin.cycleDurationMs >= 650 && pin.cycleDurationMs <= 3400
+        && Number.isFinite(pin.phaseOffsetMs) && pin.phaseOffsetMs >= 0 && pin.phaseOffsetMs < pin.cycleDurationMs);
+  }
   if (session.game === "pin") return Number.isInteger(session.publicConfig?.codeLength) && session.publicConfig.codeLength >= 3 && session.publicConfig.codeLength <= 8;
   if (session.game === "hack") {
     const puzzle = session.publicConfig?.puzzle;
@@ -150,11 +206,21 @@ function slider(id, label, value, min, max, suffix) {
   return '<label class="slider"><span>' + label + '<b id="' + id + '-value">' + value + suffix + '</b></span><input type="range" id="' + id + '" min="' + min + '" max="' + max + '" value="' + value + '"></label>';
 }
 function lockConfig() {
+  const pinPreview = Array.from({ length: state.pinCount }, (_, index) =>
+    '<span class="lock-preview-pin"><i></i><small>' + String(index + 1).padStart(2, "0") + '</small></span>'
+  ).join("");
+  const advanced = state.advanced
+    ? slider("pin-count", "Quantidade de pinos", state.pinCount, 3, 8, "")
+      + slider("picks", "Gazuas disponíveis", state.picks, 1, 15, "")
+      + slider("lock-precision", "Janela de acerto", state.lockPrecision, 70, 98, "%")
+      + slider("lock-cycle", "Velocidade-base", state.lockCycleMs, 650, 2200, " ms")
+      + slider("lock-variance", "Variação entre pinos", state.lockSpeedVariation, 0, 1200, " ms")
+    : "";
   return '<div class="config-grid"><section class="card"><h2>Dificuldade predefinida</h2>' + presets("lock", state.lockLevel || 3) +
-  '<div class="stats"><span>Precisão <b>' + state.tolerance + '°</b></span><span>Ferramentas <b>' + state.picks + '</b></span></div>' +
-  '<button class="plain" data-action="advanced">' + (state.advanced ? "− Ocultar ajustes" : "+ Ajustar detalhes") + '</button>' +
-  (state.advanced ? slider("tolerance", "Margem de acerto", state.tolerance, 3, 45, "°") + slider("picks", "Ferramentas", state.picks, 1, 10, "") : "") +
-  '<button class="primary" data-action="publish">Preparar e liberar</button></section><section class="preview"><div class="lock-preview"><div class="keyhole"></div></div><p>O jogador ajusta a ferramenta e tenta girar o cilindro. Errar consome uma ferramenta.</p></section></div>';
+    '<div class="stats"><span>Pinos <b id="lock-pins-summary">' + state.pinCount + '</b></span><span>Gazuas <b id="lock-picks-summary">' + state.picks + '</b></span><span>Janela <b id="lock-precision-summary">' + state.lockPrecision + '%</b></span></div>' +
+    '<button class="plain" data-action="advanced">' + (state.advanced ? "− Ocultar ajustes" : "+ Ajustar detalhes") + '</button>' +
+    advanced +
+    '<button class="primary" data-action="publish">Preparar e liberar</button></section><section class="preview lock-config-preview"><div class="lock-preview-pins">' + pinPreview + '</div><p>Pressione cada pino quando estiver subindo e alcançar o topo. Um erro consome uma gazua.</p></section></div>';
 }
 function hackConfig() {
   return '<div class="config-grid"><section class="card"><h2>Dificuldade predefinida</h2>' + presets("hack", state.hackLevel || 3) +
@@ -173,8 +239,26 @@ function playerGame() {
     (game === "lock" ? lockPlayer() : game === "hack" ? hackPlayer() : pinPlayer());
 }
 function lockPlayer() {
-  const picks = state.session.publicConfig.picks;
-  return '<div class="lock-game"><div class="lock-graphic"><div class="ring"></div><div class="needle" style="transform:rotate(' + state.angle + 'deg)"></div><div class="lock-core"><div class="keyhole"></div></div></div><div class="play-controls"><label>Ajuste a posição <b id="angle-value">' + state.angle + '°</b></label><input id="angle" type="range" min="0" max="359" value="' + state.angle + '" ' + (state.waiting || state.result?.finished ? "disabled" : "") + '><div class="attempts">' + Array.from({length:picks}, (_,i) => '<i class="' + (i >= state.picksLeft ? "used" : "") + '"></i>').join("") + '</div><button class="primary" data-action="try-lock" ' + (state.waiting || state.result?.finished ? "disabled" : "") + '>Girar fechadura</button>' + resultMarkup() + '</div></div>';
+  const config = state.session.publicConfig;
+  const pins = config.pins || [];
+  const locked = state.lockedPins || [];
+  const lockedCount = locked.filter(Boolean).length;
+  const pinMarkup = pins.map((pin, index) => {
+    const isLocked = Boolean(locked[index]);
+    const disabled = isLocked || state.waiting || state.result?.finished;
+    return '<button type="button" class="lock-pin ' + (isLocked ? "locked" : "") + '" data-pin-index="' + index + '" ' + (disabled ? "disabled" : "") + ' aria-label="Pino ' + (index + 1) + (isLocked ? ", travado" : ", pressione quando atingir o topo na subida") + '">' +
+      '<span class="lock-pin-label">PINO ' + String(index + 1).padStart(2, "0") + '</span>' +
+      '<span class="lock-pin-track"><i class="lock-pin-target"></i><i class="lock-pin-slot"></i><i class="lock-tumbler"><b></b></i></span>' +
+      '<span class="lock-pin-state">' + (isLocked ? "TRAVADO" : "EM MOVIMENTO") + '</span></button>';
+  }).join("");
+  const picks = Array.from({ length: config.picks }, (_, index) =>
+    '<i class="' + (index >= state.picksLeft ? "used" : "") + '"></i>'
+  ).join("");
+  return '<div class="lock-oblivion">' +
+    '<div class="lock-status-strip"><span>Pinos <b>' + lockedCount + '/' + config.pinCount + '</b></span><span>Gazuas <b>' + state.picksLeft + '/' + config.picks + '</b></span><span class="lock-pick-icons">' + picks + '</span></div>' +
+    '<p class="lock-instruction">Clique em cada pino no instante em que alcançar o topo durante a subida.</p>' +
+    '<div class="lock-pin-grid">' + pinMarkup + '</div>' +
+    '<div class="lock-result">' + resultMarkup() + '</div></div>';
 }
 function hackPlayer() {
   const puzzle = state.session.publicConfig.puzzle;
@@ -229,7 +313,18 @@ root.addEventListener("click", async (event) => {
   if (action === "advanced") { state.advanced = !state.advanced; render(); }
   if (action === "publish") await publish();
   if (action === "end") await endSession();
-  if (action === "try-lock") sendAttempt({kind:"lock",angle:state.angle});
+  if (button.dataset.pinIndex !== undefined) {
+    const pinIndex = Number(button.dataset.pinIndex);
+    if (!Number.isInteger(pinIndex) || state.lockedPins[pinIndex] || state.waiting || state.result?.finished) return;
+    const motion = getCurrentLockPinMotion(pinIndex);
+    sendAttempt({
+      kind:"lock-pin",
+      pinIndex,
+      position:Number(motion.position.toFixed(3)),
+      rising:motion.rising
+    });
+    return;
+  }
   if (action === "reset") { state.path=[]; render(); }
   if (button.dataset.cell) {
     const [r,c] = button.dataset.cell.split(":").map(Number); if (!canSelect(r,c)) return;
@@ -250,7 +345,29 @@ root.addEventListener("input", (event) => {
   if (id === "angle") { state.angle = value; document.querySelector("#angle-value").textContent = value + "°"; document.querySelector(".needle").style.transform = "rotate(" + value + "deg)"; }
   if (id === "pin") { state.pin = normalizePin(event.target.value); event.target.value = state.pin; document.querySelector('[data-action="publish"]').disabled = state.pin.length < 3; }
   if (id === "tolerance") { state.tolerance=value; document.querySelector("#tolerance-value").textContent=value+"°"; }
-  if (id === "picks") { state.picks=value; document.querySelector("#picks-value").textContent=value; }
+  if (id === "picks") {
+    state.picks=value;
+    const output=document.querySelector("#picks-value"); if(output) output.textContent=value;
+    const summary=document.querySelector("#lock-picks-summary"); if(summary) summary.textContent=value;
+  }
+  if (id === "pin-count") {
+    state.pinCount=value;
+    const output=document.querySelector("#pin-count-value"); if(output) output.textContent=value;
+    const summary=document.querySelector("#lock-pins-summary"); if(summary) summary.textContent=value;
+  }
+  if (id === "lock-precision") {
+    state.lockPrecision=value;
+    const output=document.querySelector("#lock-precision-value"); if(output) output.textContent=value+"%";
+    const summary=document.querySelector("#lock-precision-summary"); if(summary) summary.textContent=value+"%";
+  }
+  if (id === "lock-cycle") {
+    state.lockCycleMs=value;
+    const output=document.querySelector("#lock-cycle-value"); if(output) output.textContent=value+" ms";
+  }
+  if (id === "lock-variance") {
+    state.lockSpeedVariation=value;
+    const output=document.querySelector("#lock-variance-value"); if(output) output.textContent=value+" ms";
+  }
   if (id === "rows") { state.rows=value; document.querySelector("#matrix-value").textContent=state.columns+" × "+state.rows; }
   if (id === "columns") { state.columns=value; document.querySelector("#matrix-value").textContent=state.columns+" × "+state.rows; }
   if (id === "length") { state.length=value; document.querySelector("#length-value").textContent=value+" códigos"; document.querySelector("#buffer-value").textContent=value; }
@@ -259,7 +376,27 @@ async function publish() {
   try {
     await ensureObrReady();
     let game, publicConfig, secret;
-    if (state.mode === "lock") { game="lock"; publicConfig={picks:state.picks}; secret={targetAngle:Math.floor(Math.random()*360),tolerance:state.tolerance,picksLeft:state.picks}; }
+    if (state.mode === "lock") {
+      game="lock";
+      const puzzle=createLockPuzzle({
+        pinCount:state.pinCount,
+        picks:state.picks,
+        lockPrecision:state.lockPrecision,
+        cycleMs:state.lockCycleMs,
+        speedVariationMs:state.lockSpeedVariation
+      });
+      publicConfig={
+        pinCount:puzzle.pinCount,
+        picks:puzzle.picks,
+        pins:puzzle.pins.map((pin)=>({...pin}))
+      };
+      secret={
+        pins:puzzle.pins,
+        hitThreshold:puzzle.hitThreshold,
+        picksLeft:puzzle.picks,
+        lockedPins:Array.from({length:puzzle.pinCount},()=>false)
+      };
+    }
     else if (state.mode === "hack") { game="hack"; const puzzle=makeHackPuzzle({rows:state.rows,columns:state.columns,sequenceLength:state.length}); publicConfig={puzzle}; secret={puzzle}; }
     else { const code=normalizePin(state.pin); if(code.length<3) throw new Error("A senha precisa ter ao menos 3 dígitos."); game="pin"; publicConfig={codeLength:code.length}; secret={code}; }
     const sessionId=createSessionId(); localStorage.setItem(SECRET_PREFIX+sessionId,JSON.stringify({...secret,game,finished:false}));
@@ -342,6 +479,7 @@ async function onMessage(event) {
   if(!state.pendingRequestId || message.requestId!==state.pendingRequestId) return;
   clearTimeout(timeout); timeout=null; state.waiting=false; state.pendingRequestId=null; state.result=message;
   if(message.remaining!==null && message.remaining!==undefined) state.picksLeft=message.remaining;
+  if(Array.isArray(message.lockedPins)) state.lockedPins=[...message.lockedPins];
   render();
 }
 
@@ -391,7 +529,7 @@ OBR.onReady(async () => {
     state.pinInput = "";
     state.result = null;
     state.waiting = false;
-    state.picksLeft = state.session?.publicConfig?.picks ?? 0;
+    resetPlayerSessionState(state.session);
     state.notice = "";
     sdkReady = true;
     sdkError = null;
