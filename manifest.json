@@ -1,0 +1,16 @@
+{
+  "name": "Sistema de Fechaduras",
+  "version": "1.0.0",
+  "manifest_version": 1,
+  "description": "Minijogos de fechadura, hacking e painel numérico com controle do mestre.",
+  "author": "Onze1Onze",
+  "icon": "https://cdn.jsdelivr.net/gh/Onze1Onze/Sistema-Utilidade@main/icon.svg",
+  "background_url": "https://cdn.jsdelivr.net/gh/Onze1Onze/Sistema-Utilidade@main/background.html",
+  "action": {
+    "title": "Sistema de Fechaduras",
+    "icon": "https://cdn.jsdelivr.net/gh/Onze1Onze/Sistema-Utilidade@main/icon.svg",
+    "popover": "https://cdn.jsdelivr.net/gh/Onze1Onze/Sistema-Utilidade@main/index.html",
+    "width": 1080,
+    "height": 740
+  }
+}
