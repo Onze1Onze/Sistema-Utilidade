@@ -1,5 +1,6 @@
+import OBR from "https://cdn.jsdelivr.net/npm/@owlbear-rodeo/sdk@3.1.0/+esm";
+
 // A interface não depende da rede para aparecer. O SDK é carregado em segundo plano.
-let OBR = null;
 let sdkReady = false;
 let sdkError = null;
 const META_KEY = "com.onze11.sistema-utilidade/session";
@@ -67,17 +68,6 @@ let connectionId = "";
 let timeout = null;
 const WAIT_MS = 10000;
 
-async function importModuleWithTimeout(url, milliseconds = 12000) {
-  let timer;
-  try {
-    return await Promise.race([
-      import(url),
-      new Promise((_, reject) => { timer = setTimeout(() => reject(new Error("Tempo esgotado ao carregar o SDK.")), milliseconds); })
-    ]);
-  } finally {
-    clearTimeout(timer);
-  }
-}
 
 // A inicialização antiga é substituída por bootOwlbear(), chamado depois de renderizar.
 
@@ -284,55 +274,57 @@ async function onMessage(event) {
   render();
 }
 
-async function bootOwlbear() {
-  const urls = [
-    "https://cdn.jsdelivr.net/npm/@owlbear-rodeo/sdk@3.1.0/+esm",
-    "https://esm.sh/@owlbear-rodeo/sdk@3.1.0?bundle"
-  ];
-  let sdkModule = null;
-  let lastError = null;
-  for (const url of urls) {
-    try {
-      sdkModule = await importModuleWithTimeout(url);
-      if (sdkModule?.default?.onReady) break;
-      sdkModule = null;
-      throw new Error("O arquivo carregado não exportou a API OBR.");
-    } catch (error) {
-      lastError = error;
-      console.warn("[Sistema de Fechaduras] Falha no provedor de SDK:", url, error);
-    }
-  }
-  if (!sdkModule?.default) throw lastError || new Error("SDK não encontrado.");
-  OBR = sdkModule.default;
-  await Promise.race([
-    new Promise((resolve, reject) => {
-      const timer = setTimeout(() => reject(new Error("O Owlbear não respondeu à inicialização do SDK.")), 10000);
-      OBR.onReady(() => { clearTimeout(timer); resolve(); });
-      if (OBR.isReady) { clearTimeout(timer); resolve(); }
-    })
-  ]);
-  if (OBR.isAvailable === false) throw new Error("Abra esta extensão dentro de uma sala do Owlbear Rodeo.");
-  state.role = await OBR.player.getRole();
-  connectionId = await OBR.player.getConnectionId();
-  sdkReady = true;
-  sdkError = null;
-  OBR.room.onMetadataChange((metadata) => acceptSession(metadata?.[META_KEY] ?? null));
-  OBR.broadcast.onMessage(CHANNEL, onMessage);
-  const initialMetadata = await OBR.room.getMetadata();
-  state.session = initialMetadata?.[META_KEY] ?? null;
-  state.path = [];
-  state.pinInput = "";
-  state.result = null;
-  state.waiting = false;
-  state.picksLeft = state.session?.publicConfig?.picks ?? 0;
-  state.notice = "";
-  render();
+// O SDK é importado estaticamente para registrar seu listener de mensagens
+// antes de o Owlbear enviar o evento único OBR_READY.
+function replayBufferedOwlbearReady() {
+  if (OBR.isReady) return;
+  const pending = window.__OBR_READY_BUFFER__;
+  if (!pending || pending.replayed) return;
+  pending.replayed = true;
+  window.dispatchEvent(new MessageEvent("message", {
+    data: pending.data,
+    origin: pending.origin
+  }));
 }
 
 render();
-bootOwlbear().catch((error) => {
-  sdkError = error;
-  sdkReady = false;
-  console.error("[Sistema de Fechaduras] SDK indisponível:", error);
-  showNotice("Interface aberta, mas sem conexão ao Owlbear. Feche e reabra a extensão. Detalhe: " + (error?.message || "falha de inicialização"));
+replayBufferedOwlbearReady();
+
+let readyTimeout = setTimeout(() => {
+  if (sdkReady) return;
+  const hasRef = new URLSearchParams(window.location.search).has("obrref");
+  const detail = hasRef
+    ? "O Owlbear ainda não enviou OBR_READY."
+    : "A URL da extensão chegou sem o parâmetro obrref do Owlbear.";
+  sdkError = new Error(detail);
+  showNotice("Interface pronta, mas a integração não foi inicializada. " + detail);
+}, 12000);
+
+OBR.onReady(async () => {
+  clearTimeout(readyTimeout);
+  try {
+    if (!OBR.isAvailable) {
+      throw new Error("OBR.isAvailable=false: confira se esta página foi aberta pelo popover do Owlbear Rodeo e se a URL preservou obrref.");
+    }
+    state.role = await OBR.player.getRole();
+    connectionId = await OBR.player.getConnectionId();
+    sdkReady = true;
+    sdkError = null;
+    OBR.room.onMetadataChange((metadata) => acceptSession(metadata?.[META_KEY] ?? null));
+    OBR.broadcast.onMessage(CHANNEL, onMessage);
+    const initialMetadata = await OBR.room.getMetadata();
+    state.session = initialMetadata?.[META_KEY] ?? null;
+    state.path = [];
+    state.pinInput = "";
+    state.result = null;
+    state.waiting = false;
+    state.picksLeft = state.session?.publicConfig?.picks ?? 0;
+    state.notice = "";
+    render();
+  } catch (error) {
+    sdkReady = false;
+    sdkError = error;
+    console.error("[Sistema de Fechaduras] Falha ao conectar ao Owlbear:", error);
+    showNotice("A interface abriu, mas a conexão com Owlbear falhou: " + (error?.message || "erro desconhecido"));
+  }
 });
