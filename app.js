@@ -309,9 +309,12 @@ replayBufferedOwlbearReady();
 let readyTimeout = setTimeout(() => {
   if (sdkReady) return;
   const hasRef = new URLSearchParams(window.location.search).has("obrref");
-  const detail = hasRef
-    ? "O Owlbear ainda não enviou OBR_READY."
-    : "A URL da extensão chegou sem o parâmetro obrref do Owlbear.";
+  const pendingReady = window.__OBR_READY_BUFFER__;
+  const detail = !hasRef
+    ? "A URL da extensão chegou sem o parâmetro obrref do Owlbear."
+    : pendingReady?.replayed
+      ? "O evento OBR_READY foi capturado, mas o SDK não aceitou sua origem. O obrref e a origem enviada pelo Owlbear não coincidem."
+      : "O Owlbear ainda não enviou OBR_READY.";
   sdkError = new Error(detail);
   completeSdkInit({ok:false,error:sdkError});
   showNotice("Interface pronta, mas a integração não foi inicializada. " + detail);
