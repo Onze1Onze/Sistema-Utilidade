@@ -27,7 +27,7 @@ function clampInteger(value, min, max, fallback) {
   return Number.isFinite(parsed) ? Math.min(max, Math.max(min, parsed)) : fallback;
 }
 function normalizePin(value) {
-  return String(value ?? "").replace(/\\D/g, "").slice(0, 8);
+  return String(value ?? "").replace(/[^0-9]/g, "").slice(0, 8);
 }
 function createSessionId(random = Math.random) {
   return Array.from({length:16}, () => Math.floor(random()*256).toString(16).padStart(2,"0")).join("");
@@ -62,7 +62,7 @@ function makeHackPuzzle(config, random = Math.random) {
 }
 
 const root = document.querySelector("#app");
-const state = { role: "GM", session: null, mode: "lock", collapsed: false, advanced: false, tolerance: 19, picks: 5, rows: 5, columns: 7, length: 4, pin: "", angle: 0, path: [], pinInput: "", waiting: false, result: null, picksLeft: 0 };
+const state = { role: "GM", session: null, mode: "lock", collapsed: false, advanced: false, tolerance: 19, picks: 5, rows: 5, columns: 7, length: 4, pin: "", angle: 0, path: [], pinInput: "", waiting: false, result: null, picksLeft: 0, notice: "" };
 let connectionId = "";
 let timeout = null;
 const WAIT_MS = 10000;
@@ -236,6 +236,7 @@ root.addEventListener("input", (event) => {
 });
 async function publish() {
   try {
+    if (!sdkReady || !OBR) throw new Error("Owlbear SDK ainda não está conectado. Reabra a extensão.");
     let game, publicConfig, secret;
     if (state.mode === "lock") { game="lock"; publicConfig={picks:state.picks}; secret={targetAngle:Math.floor(Math.random()*360),tolerance:state.tolerance,picksLeft:state.picks}; }
     else if (state.mode === "hack") { game="hack"; const puzzle=makeHackPuzzle({rows:state.rows,columns:state.columns,sequenceLength:state.length}); publicConfig={puzzle}; secret={puzzle}; }
