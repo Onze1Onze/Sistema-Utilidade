@@ -124,6 +124,12 @@ function canSelect(row, col) {
 }
 function escapeHTML(value) { return String(value).replace(/[&<>"']/g, (c) => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
 
+window.addEventListener("keydown", (event) => {
+  if (event.key === "Escape") {
+    OBR.action.close().catch((error) => console.warn("Não foi possível fechar a extensão:", error));
+  }
+});
+
 root.addEventListener("click", async (event) => {
   const button = event.target.closest("button");
   if (!button) return;
