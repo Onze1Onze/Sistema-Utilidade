@@ -98,9 +98,8 @@ test("ambas as páginas usam import estático do SDK 3.1.0", () => {
 });
 
 test("OBR.onReady executa depois que o evento buffered é reproduzido", () => {
-  const replayCode = appJs.match(/function replayBufferedOwlbearReady\\(\\) \\{[\\s\\S]*?\\n\\}/)?.[0];
+  const replayCode = appJs.match(/function replayBufferedOwlbearReady\(\) \{[\s\S]*?\n\}/)?.[0];
   assert.ok(replayCode);
-  const parent = {};
   const listeners = [];
   const windowMock = {
     __OBR_READY_BUFFER__: {
@@ -127,7 +126,7 @@ test("OBR.onReady executa depois que o evento buffered é reproduzido", () => {
       this.origin = options.origin;
     }
   }
-  vm.runInNewContext(replayCode + "\\nreplayBufferedOwlbearReady();", {
+  vm.runInNewContext(replayCode + "\nreplayBufferedOwlbearReady();", {
     OBR: { isReady: false },
     window: windowMock,
     MessageEvent: MockMessageEvent
