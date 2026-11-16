@@ -90,7 +90,7 @@ footer{border-top:1px solid #202a33;display:flex;align-items:center;justify-cont
 .lock-tumbler:before,.lock-tumbler:after{content:"";position:absolute;top:3px;bottom:3px;width:2px;background:rgba(17,28,34,.52)}
 .lock-tumbler:before{left:5px}.lock-tumbler:after{right:5px}
 .lock-tumbler b{position:absolute;left:50%;top:3px;bottom:3px;width:2px;transform:translateX(-50%);background:rgba(255,255,255,.48)}
-.lock-pin[data-rising="true"]:not(.locked) .lock-pin-target{background:linear-gradient(180deg,rgba(0,217,245,.25),rgba(0,217,245,.06))}
+.lock-pin:not(.locked) .lock-pin-target{background:linear-gradient(180deg,rgba(0,217,245,.25),rgba(0,217,245,.06))}
 .lock-pin.locked{border-color:#228b68;background:linear-gradient(180deg,rgba(25,119,87,.19),#08110f)}
 .lock-pin.locked .lock-pin-track{border-color:#268765;background:linear-gradient(180deg,#102b22,#09130f)}
 .lock-pin.locked .lock-pin-target{border-color:#45d69d;background:rgba(46,184,129,.19)}
