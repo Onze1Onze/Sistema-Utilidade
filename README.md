@@ -2,10 +2,10 @@
 
 Extensão para Owlbear Rodeo com três minijogos controlados pelo mestre: abrir fechadura, hacking de matriz e painel numérico.
 
-## Instalação — versão 1.0.5
+## Instalação — versão 1.0.6
 
 Use o manifesto da branch principal:
-`https://cdn.jsdelivr.net/gh/Onze1Onze/Sistema-Utilidade@c67eecdf2247d4efb407eeb3c53127b5298d9d7e/manifest.json`
+`https://cdn.jsdelivr.net/gh/Onze1Onze/Sistema-Utilidade@main/manifest.json`
 
 1. No Owlbear Rodeo, abra **Extras → Extensions → Add**.
 2. Cole a URL do manifesto.
@@ -21,7 +21,7 @@ O HTML registra um listener inline antes dos módulos e guarda o evento `OBR_REA
 
 ## Minijogos
 
-- **Abrir Fechadura:** minijogo de pinos inspirado em Oblivion. Cada pino sobe e desce com velocidade e fase próprias; o jogador clica na janela superior durante a subida para travá-lo. Erros consomem gazuas. Cinco presets e ajustes avançados controlam quantidade de pinos, precisão, velocidade e variação entre movimentos.
+- **Abrir Fechadura:** minijogo de pinos inspirado em Oblivion. Cada pino segue um movimento suave e desacelera perto do topo. A faixa de acerto é mais ampla e aceita cliques tanto na subida quanto na descida. Cinco presets equilibram a quantidade de pinos, as gazuas, o tamanho da faixa e a velocidade; os ajustes avançados também permitem ampliar a janela e reduzir a velocidade. Os níveis difíceis continuam exigindo atenção, mas deixam margem para erros.
 - **Hacking:** matriz de códigos, sequência-alvo, seleção alternada entre coluna e linha e buffer configurável.
 - **Painel Numérico:** senha definida pelo mestre, teclado numérico e validação no processo de fundo do mestre.
 
@@ -43,6 +43,6 @@ A lógica de validação está em `game-logic.js`. Execute com Node.js 20 ou sup
 
 `npm test`
 
-A suíte cobre geração de matrizes, temporização dos pinos, quebra de gazuas, conclusão de fechaduras, validação das três modalidades, handshake do SDK, arbitragem de tentativas, entrega de resposta ao jogador e atualização visual do mestre. O GitHub Actions executa os testes em cada push e pull request.
+A suíte cobre geração de matrizes, movimento suave e faixa de acerto dos pinos nos dois sentidos, margem de gazuas por dificuldade, quebra de gazuas, conclusão de fechaduras, validação das três modalidades, handshake do SDK, arbitragem de tentativas, entrega de resposta ao jogador e atualização visual do mestre. O GitHub Actions executa os testes em cada push e pull request.
 
 A interface não exige etapa de compilação. O SDK é importado da distribuição ESM do jsDelivr; os arquivos da extensão são estáticos.
