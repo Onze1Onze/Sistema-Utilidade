@@ -128,7 +128,7 @@ test("o árbitro transmite o pino travado e o progresso ao jogador e ao mestre",
     publicConfig:{
       pinCount:3,
       picks:4,
-      hitThreshold:0.9,
+      hitThreshold:0.78,
       pins:[
         {cycleDurationMs:1100,phaseOffsetMs:100},
         {cycleDurationMs:1400,phaseOffsetMs:350},
@@ -139,7 +139,7 @@ test("o árbitro transmite o pino travado e o progresso ao jogador e ao mestre",
   const secret = {
     game:"lock",
     pins:session.publicConfig.pins,
-    hitThreshold:0.9,
+    hitThreshold:0.78,
     picksLeft:4,
     lockedPins:[false,false,false],
     finished:false
