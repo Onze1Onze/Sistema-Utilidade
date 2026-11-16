@@ -1,15 +1,15 @@
 {
   "name": "Sistema de Fechaduras",
-  "version": "1.0.5",
+  "version": "1.0.6",
   "manifest_version": 1,
   "description": "Minijogos de pinos no estilo Oblivion, hacking e painel numérico para Owlbear Rodeo.",
   "author": "Onze1Onze",
-  "icon": "https://rawcdn.githack.com/Onze1Onze/Sistema-Utilidade/337c8c8c416051e7df21609dd5be53fe9e83dbf7/icon.svg",
-  "background_url": "https://rawcdn.githack.com/Onze1Onze/Sistema-Utilidade/337c8c8c416051e7df21609dd5be53fe9e83dbf7/background.html",
+  "icon": "https://rawcdn.githack.com/Onze1Onze/Sistema-Utilidade/20576d1e1a4ed99ad10fb2941e018b209cbf5433/icon.svg",
+  "background_url": "https://rawcdn.githack.com/Onze1Onze/Sistema-Utilidade/20576d1e1a4ed99ad10fb2941e018b209cbf5433/background.html",
   "action": {
     "title": "Sistema de Fechaduras",
-    "icon": "https://rawcdn.githack.com/Onze1Onze/Sistema-Utilidade/337c8c8c416051e7df21609dd5be53fe9e83dbf7/icon.svg",
-    "popover": "https://rawcdn.githack.com/Onze1Onze/Sistema-Utilidade/337c8c8c416051e7df21609dd5be53fe9e83dbf7/index.html",
+    "icon": "https://rawcdn.githack.com/Onze1Onze/Sistema-Utilidade/20576d1e1a4ed99ad10fb2941e018b209cbf5433/icon.svg",
+    "popover": "https://rawcdn.githack.com/Onze1Onze/Sistema-Utilidade/20576d1e1a4ed99ad10fb2941e018b209cbf5433/index.html",
     "width": 980,
     "height": 700
   }
