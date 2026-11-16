@@ -73,7 +73,7 @@ function makeHackPuzzle(config, random = Math.random) {
 const root = document.querySelector("#app");
 const state = {
   role: "GM", session: null, mode: "lock", collapsed: false, advanced: false,
-  pinCount: 5, picks: 7, lockPrecision: 88, lockCycleMs: 1350, lockSpeedVariation: 650,
+  pinCount: 5, picks: 10, lockPrecision: 73, lockCycleMs: 1700, lockSpeedVariation: 280, lockLevel: 3,
   rows: 5, columns: 7, length: 4, pin: "", path: [], pinInput: "",
   waiting: false, result: null, picksLeft: 0, lockedPins: [], notice: "",
   lastAttempt: null, pendingRequestId: null, lockStartedAt: 0
@@ -171,10 +171,10 @@ function validPublicSession(session) {
     const config = session.publicConfig;
     return Number.isInteger(config?.picks) && config.picks >= 1 && config.picks <= 15
       && Number.isInteger(config?.pinCount) && config.pinCount >= 3 && config.pinCount <= 8
-      && Number.isFinite(config.hitThreshold) && config.hitThreshold >= 0.70 && config.hitThreshold <= 0.98
+      && Number.isFinite(config.hitThreshold) && config.hitThreshold >= 0.60 && config.hitThreshold <= 0.85
       && Array.isArray(config.pins) && config.pins.length === config.pinCount
       && config.pins.every((pin) => Number.isInteger(pin.cycleDurationMs)
-        && pin.cycleDurationMs >= 650 && pin.cycleDurationMs <= 3400
+        && pin.cycleDurationMs >= 1000 && pin.cycleDurationMs <= 3300
         && Number.isFinite(pin.phaseOffsetMs) && pin.phaseOffsetMs >= 0 && pin.phaseOffsetMs < pin.cycleDurationMs);
   }
   if (session.game === "pin") return Number.isInteger(session.publicConfig?.codeLength) && session.publicConfig.codeLength >= 3 && session.publicConfig.codeLength <= 8;
@@ -214,15 +214,15 @@ function lockConfig() {
   const advanced = state.advanced
     ? slider("pin-count", "Quantidade de pinos", state.pinCount, 3, 8, "")
       + slider("picks", "Gazuas disponíveis", state.picks, 1, 15, "")
-      + slider("lock-precision", "Janela de acerto", state.lockPrecision, 70, 98, "%")
-      + slider("lock-cycle", "Velocidade-base", state.lockCycleMs, 650, 2200, " ms")
-      + slider("lock-variance", "Variação entre pinos", state.lockSpeedVariation, 0, 1200, " ms")
+      + slider("lock-precision", "Altura mínima do pino", state.lockPrecision, 60, 85, "%")
+      + slider("lock-cycle", "Velocidade-base", state.lockCycleMs, 1000, 2600, " ms")
+      + slider("lock-variance", "Variação entre pinos", state.lockSpeedVariation, 0, 700, " ms")
     : "";
   return '<div class="config-grid"><section class="card"><h2>Dificuldade predefinida</h2>' + presets("lock", state.lockLevel || 3) +
-    '<div class="stats"><span>Pinos <b id="lock-pins-summary">' + state.pinCount + '</b></span><span>Gazuas <b id="lock-picks-summary">' + state.picks + '</b></span><span>Janela <b id="lock-precision-summary">' + state.lockPrecision + '%</b></span></div>' +
+    '<div class="stats"><span>Pinos <b id="lock-pins-summary">' + state.pinCount + '</b></span><span>Gazuas <b id="lock-picks-summary">' + state.picks + '</b></span><span>Faixa <b id="lock-precision-summary">' + (100 - state.lockPrecision) + '%</b></span></div>' +
     '<button class="plain" data-action="advanced">' + (state.advanced ? "− Ocultar ajustes" : "+ Ajustar detalhes") + '</button>' +
     advanced +
-    '<button class="primary" data-action="publish">Preparar e liberar</button></section><section class="preview lock-config-preview"><div class="lock-preview-pins">' + pinPreview + '</div><p>Pressione cada pino quando estiver subindo e alcançar o topo. Um erro consome uma gazua.</p></section></div>';
+    '<button class="primary" data-action="publish">Preparar e liberar</button></section><section class="preview lock-config-preview"><div class="lock-preview-pins">' + pinPreview + '</div><p>A faixa iluminada indica a área válida. Quanto maior a faixa, mais fácil travar o pino. O acerto vale na subida e na descida.</p></section></div>';
 }
 function hackConfig() {
   return '<div class="config-grid"><section class="card"><h2>Dificuldade predefinida</h2>' + presets("hack", state.hackLevel || 3) +
@@ -237,7 +237,7 @@ function pinConfig() {
 function playerGame() {
   const game = state.session.game;
   const title = game === "lock" ? "Abrir Fechadura" : game === "hack" ? "Hackear Sistema" : "Painel Numérico";
-  return '<div class="game-head"><div><h1>' + title + '</h1><p>' + (game === "lock" ? "Ajuste a ferramenta e encontre o ponto de pressão." : game === "hack" ? "Selecione os códigos na ordem correta." : "Insira a senha para destrancar.") + '</p></div></div>' +
+  return '<div class="game-head"><div><h1>' + title + '</h1><p>' + (game === "lock" ? "Acompanhe a faixa iluminada e trave todos os pinos." : game === "hack" ? "Selecione os códigos na ordem correta." : "Insira a senha para destrancar.") + '</p></div></div>' +
     (game === "lock" ? lockPlayer() : game === "hack" ? hackPlayer() : pinPlayer());
 }
 function lockPlayer() {
@@ -259,7 +259,7 @@ function lockPlayer() {
   ).join("");
   return '<div class="lock-oblivion">' +
     '<div class="lock-status-strip"><span>Pinos <b>' + lockedCount + '/' + config.pinCount + '</b></span><span>Gazuas <b>' + state.picksLeft + '/' + config.picks + '</b></span><span class="lock-pick-icons">' + picks + '</span></div>' +
-    '<p class="lock-instruction">Clique em cada pino no instante em que alcançar o topo durante a subida.</p>' +
+    '<p class="lock-instruction">Clique enquanto o pino estiver dentro da faixa iluminada perto do topo. Ela vale na subida e na descida.</p>' +
     '<div class="lock-pin-grid">' + pinMarkup + '</div>' +
     '<div class="lock-result">' + resultMarkup() + '</div></div>';
 }
@@ -361,7 +361,7 @@ root.addEventListener("input", (event) => {
   if (id === "lock-precision") {
     state.lockPrecision=value;
     const output=document.querySelector("#lock-precision-value"); if(output) output.textContent=value+"%";
-    const summary=document.querySelector("#lock-precision-summary"); if(summary) summary.textContent=value+"%";
+    const summary=document.querySelector("#lock-precision-summary"); if(summary) summary.textContent=(100-value)+"%";
   }
   if (id === "lock-cycle") {
     state.lockCycleMs=value;
