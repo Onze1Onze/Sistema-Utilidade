@@ -37,3 +37,17 @@ test("a configuração do mestre publica velocidades individuais e sincroniza a 
   assert.match(app, /speedVariationMs:state\.lockSpeedVariation/);
   assert.match(app, /hitThreshold:puzzle\.hitThreshold/);
 });
+
+test("a interface explica a janela ampliada e não a apaga durante a descida", () => {
+  assert.match(app, /Ela vale na subida e na descida/);
+  assert.match(app, /Altura mínima do pino/);
+  assert.match(app, /100 - state\.lockPrecision/);
+  assert.match(css, /\.lock-pin:not\(\.locked\) \.lock-pin-target/);
+  assert.doesNotMatch(css, /\.lock-pin\[data-rising="true"\]:not\(\.locked\) \.lock-pin-target/);
+});
+
+test("os ajustes manuais permitem configurar uma janela mais generosa", () => {
+  assert.match(app, /state\.lockPrecision, 60, 85/);
+  assert.match(app, /state\.lockCycleMs, 1000, 2600/);
+  assert.match(app, /state\.lockSpeedVariation, 0, 700/);
+});
