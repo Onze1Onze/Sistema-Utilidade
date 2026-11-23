@@ -10,7 +10,8 @@ export function rollAttack(record, attack, part = "both") {
   const damage = part === "test" || !damageExpression ? null : rollDiceExpression(applyDiceCondition(damageExpression, stats.diceCount.damage));
   const warnings = [];
   if (stats.rules.includes("attacksTargetTotalConcealment")) warnings.push("Alvo recebe camuflagem total.");
-  return { kind: "attack", title: attack.name, part, test, damage, critical: attack.critical ?? "", range: attack.range ?? "", effects: [attack.effects, ...warnings].filter(Boolean).join(" · ") };
+  const critical = attack.critical ?? (attack.criticalMargin ? `${attack.criticalMargin}/${attack.criticalMultiplier || "x2"}` : "");
+  return { kind: "attack", title: attack.name, part, test, damage, critical, range: attack.range ?? "", effects: [attack.effects, ...warnings].filter(Boolean).join(" · ") };
 }
 
 export function rollAbility(record, ability, part = "both") {

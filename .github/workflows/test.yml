@@ -15,3 +15,6 @@ jobs:
         with:
           node-version: 20
       - run: npm test
+
+      - name: Test Outro Lado extension
+        run: cd outro-lado-painel-ameacas && npm test && npm run check

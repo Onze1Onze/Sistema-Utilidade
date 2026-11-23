@@ -227,7 +227,7 @@ export function validateThreatPayload(payload) {
       if (attack.criticalMargin !== undefined && attack.criticalMargin !== null && (!Number.isInteger(attack.criticalMargin) || attack.criticalMargin < 1 || attack.criticalMargin > 20)) {
         addError(errors, `${itemPath}.criticalMargin`, "Informe uma margem crítica inteira entre 1 e 20.");
       }
-      if (attack.criticalMultiplier !== undefined && (typeof attack.criticalMultiplier !== "string" || !/^x[1-9]\\d*$/i.test(attack.criticalMultiplier))) {
+      if (attack.criticalMultiplier !== undefined && (typeof attack.criticalMultiplier !== "string" || !/^x[1-9]\d*$/i.test(attack.criticalMultiplier))) {
         addError(errors, `${itemPath}.criticalMultiplier`, 'Informe o multiplicador como texto, por exemplo "x2".');
       }
     }

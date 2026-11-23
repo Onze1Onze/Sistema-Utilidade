@@ -168,3 +168,11 @@ test("ciclo de exportação preserva nova estrutura de ações e habilidades", (
   assert.equal(imported.creature.actions.agredir[0].criticalMultiplier, "x3");
   assert.equal(imported.creature.actions.other[0].name, "Uivo");
 });
+
+
+test("criticalMultiplier é validado no formato xN", () => {
+  const payload = createThreatTemplate();
+  payload.creature.actions.agredir[0].criticalMultiplier = "2x";
+  const errors = validateThreatPayload(payload);
+  assert.ok(errors.some((item) => item.path === "creature.actions.agredir[0].criticalMultiplier"));
+});

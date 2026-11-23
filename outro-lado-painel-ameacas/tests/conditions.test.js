@@ -174,7 +174,7 @@ test("condição predefinida salva a categoria para exibição na ficha", () => 
   assert.ok(applied.runtime.conditions[0].rules.includes("onlyLightWeapons"));
 });
 
-test("rollAbility interpreta damageDice e mantém DT e resistência na descrição", () => {
+test("rollAbility interpreta damageDice e mantém DT e resistência na descrição", async () => {
   const { rollAbility } = await import("../src/dice.js");
   const payload = createThreatTemplate();
   payload.creature.abilities = [{ name: "Sopro", description: "Cone de energia", damageDice: "3d8+4", dt: 22, savingThrow: "Reflexos" }];
