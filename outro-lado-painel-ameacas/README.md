@@ -6,7 +6,7 @@ Extensão para Owlbear Rodeo voltada ao gerenciamento privado de fichas de Amea�
 
 Manifesto da pasta:
 
-    https://cdn.jsdelivr.net/gh/Onze1Onze/Sistema-Utilidade@fe5f5b32e97d6be0fb6848078213ab1c50851146/outro-lado-painel-ameacas/manifest.json
+    https://cdn.jsdelivr.net/gh/Onze1Onze/Sistema-Utilidade@18d7d91c954db46c2247823fb4e8366d628f4e21/outro-lado-painel-ameacas/manifest.json
 
 No Owlbear Rodeo, abra **Extras → Extensions → Add**, cole a URL do manifesto e ative a extensão na sala. A ação **Painel de Ameaças** aparece na barra superior.
 
