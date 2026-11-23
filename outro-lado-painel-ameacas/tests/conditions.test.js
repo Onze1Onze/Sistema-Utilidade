@@ -165,3 +165,11 @@ test("Inconsciente bloqueia ações e reações; Paralisado só libera ações m
   assert.equal(canPerformAction(paralyzed, { name: "Ritual mental", mental: true }), true);
   assert.equal(canPerformAction(paralyzed, { name: "Reação mental", mental: true }, { isReaction: true }), true);
 });
+
+
+test("condição predefinida salva a categoria para exibição na ficha", () => {
+  const applied = applyPresetCondition(record(), "Agarrado");
+  assert.equal(applied.runtime.conditions[0].group, "Paralisia");
+  assert.ok(applied.runtime.conditions[0].description);
+  assert.ok(applied.runtime.conditions[0].rules.includes("onlyLightWeapons"));
+});

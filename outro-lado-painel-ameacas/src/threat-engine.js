@@ -379,7 +379,7 @@ export function addCondition(record, condition) {
   const rules = ensureArray(condition.rules);
   for (const rule of rules) if (!allowedRules.has(rule)) throw new Error(`Regra de condição “${rule}” não reconhecida.`);
   const next = clone(record);
-  const entry = { id: crypto.randomUUID(), name: condition.name.trim(), duration: stringOr(condition.duration), description: stringOr(condition.description), modifiers: condition.modifiers ?? {}, rules, appliedAt: new Date().toISOString() };
+  const entry = { id: crypto.randomUUID(), name: condition.name.trim(), group: stringOr(condition.group), duration: stringOr(condition.duration), description: stringOr(condition.description), modifiers: condition.modifiers ?? {}, rules, appliedAt: new Date().toISOString() };
   next.runtime.conditions.push(entry);
   pushHistory(next, `Condição aplicada: ${entry.name}.`);
   return next;

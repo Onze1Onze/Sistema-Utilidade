@@ -1,6 +1,6 @@
 # Outro Lado — Painel de Ameaças
 
-Versão 1.2.0. Extensão para Owlbear Rodeo voltada ao gerenciamento privado de fichas de Ameaças de Ordem Paranormal pelo Mestre.
+Versão 1.2.1. Extensão para Owlbear Rodeo voltada ao gerenciamento privado de fichas de Ameaças de Ordem Paranormal pelo Mestre.
 
 ## Instalação
 
@@ -26,6 +26,8 @@ A nova lista `creature.skillTests` permite registrar testes de perícia com `nam
 
 O schema é versionado (`schemaVersion: 1`) e mantém propriedades desconhecidas dentro do objeto da criatura, permitindo estender a ficha sem perder campos futuros.
 
+As condições são selecionadas em uma lista com descrição e grupo; clicar aplica imediatamente os modificadores e as regras predefinidas, e o botão × na ficha remove a condição. Reaplicações permitidas avançam para o agravamento previsto; opções já ativas sem agravamento ficam indisponíveis até serem removidas. Não existe mais entrada manual de condições pela interface.
+
 ## Sistemas implementados
 
 - Bandeja vertical com busca e cartões das ameaças.
@@ -38,7 +40,7 @@ O schema é versionado (`schemaVersion: 1`) e mantém propriedades desconhecidas
 - Rolagens de ataques divididas em ações independentes de teste e dano.
 - Rolagem apresentada em painel compacto não modal, sem escurecer a ficha; histórico de resultados individual por ameaça, com dados e totais persistidos no JSON.
 - Temas visuais e SVGs próprios para Sangue (vermelho), Morte (preto), Conhecimento (dourado), Energia (rosa/ciano) e Medo (branco).
-- Catálogo aplicável de 17 condições: Agarrado, Caído, Cego, Debilitado, Desprevenido, Enredado, Exausto, Fatigado, Fraco, Inconsciente, Indefeso, Ofuscado, Paralisado, Petrificado, Surdo, Surpreendido e Vulnerável. Modificadores de Defesa situacional, atributos, salvaguardas, testes, deslocamento, restrições e resistência são calculados sem alterar os valores-base.
+- Seletor visual de 17 condições predefinidas: clique em uma opção para aplicar automaticamente; condições ativas aparecem na ficha e podem ser removidas individualmente. Não há formulário para escrever condições ou modificadores manualmente. Catálogo: Agarrado, Caído, Cego, Debilitado, Desprevenido, Enredado, Exausto, Fatigado, Fraco, Inconsciente, Indefeso, Ofuscado, Paralisado, Petrificado, Surdo, Surpreendido e Vulnerável. Modificadores de Defesa situacional, atributos, salvaguardas, testes, deslocamento, restrições e resistência são calculados sem alterar os valores-base.
 - Reaplicações de Fraco, Debilitado, Fatigado e Exausto avançam para o agravamento descrito; estágios mais graves substituem os menos graves e impedem rebaixamento automático.
 - Recursos mutáveis, ataques e habilidades interativos.
 - Parser e rolador para expressões como `1d20`, `2d20+10`, `4d6`, `2d8+7` e expressões compostas com soma/subtração.

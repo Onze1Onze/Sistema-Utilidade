@@ -1,9 +1,9 @@
 import { loadOwlbearSDK } from "./sdk-loader.js";
 import {
   createThreatTemplate, normalizeThreatPayload, exportThreatRecord, computeEffectiveStats,
-  addCondition, removeCondition, changeHitPoints, changeResource, pushHistory, pushRollHistory, ThreatValidationError
+  removeCondition, changeHitPoints, changeResource, pushHistory, pushRollHistory, ThreatValidationError
 } from "./threat-engine.js";
-import { CONDITION_PRESETS, applyPresetCondition, getSkillTestRestriction, canPerformAction, canUseAttackWhileGrappled } from "./conditions.js";
+import { CONDITION_PRESETS, applyPresetCondition, getConditionEscalation, getSkillTestRestriction, canPerformAction, canUseAttackWhileGrappled } from "./conditions.js";
 import { rollAttack, rollAbility, rollStandalone, rollSkillTest, rollDamageExpression, rollStat } from "./dice.js";
 import { ThreatStore } from "./storage.js";
 
@@ -135,7 +135,7 @@ function renderSheet(record) {
     const list = toListText(values);
     return `<div class="sheet-block"><h3 class="block-title">${title}</h3>${list ? `<div class="resistance-line">${escapeHtml(list)}</div>` : `<div class="condition-empty">—</div>`}</div>`;
   };
-  const currentConditions = r.conditions.map((condition) => `<div class="condition-entry"><div><b>${escapeHtml(condition.name)}</b>${condition.duration ? `<small>${escapeHtml(condition.duration)}</small>` : ""}${condition.description ? `<small>${escapeHtml(condition.description)}</small>` : ""}${condition.rules?.length ? `<small class="condition-rule-tags">${escapeHtml(condition.rules.map((rule) => ({ immobile: "Imóvel", onlyLightWeapons: "Apenas armas leves", rangedAttackMisfire50: "Alvo agarrado: ataques à distância podem acertar outro alvo (50%)", cannotObserve: "Não observa", attacksTargetTotalConcealment: "Alvos com camuflagem total", incapacitated: "Incapacitado", cannotAct: "Não pode agir", cannotReact: "Não pode reagir", reflexesAutoFail: "Falha automática em Reflexos", cannotHear: "Não ouve", ritualsPoorCondition: "Rituais em condição ruim", mentalOnly: "Apenas ações mentais", resistanceAll10: "Resistência a dano 10" }[rule] ?? rule)).join(" · "))}</small>` : ""}<div class="modifier-summary">${escapeHtml(JSON.stringify(condition.modifiers ?? {}))}</div></div><button class="danger-btn" data-action="remove-condition" data-id="${escapeHtml(condition.id)}" title="Remover condição">×</button></div>`).join("");
+  const currentConditions = r.conditions.map((condition) => `<div class="condition-entry"><div><div class="condition-entry-title"><b>${escapeHtml(condition.name)}</b>${condition.group ? `<span>${escapeHtml(condition.group)}</span>` : ""}</div>${condition.duration ? `<small>${escapeHtml(condition.duration)}</small>` : ""}${condition.description ? `<small>${escapeHtml(condition.description)}</small>` : ""}${condition.rules?.length ? `<small class="condition-rule-tags">${escapeHtml(condition.rules.map((rule) => ({ immobile: "Imóvel", onlyLightWeapons: "Apenas armas leves", rangedAttackMisfire50: "Ataques à distância contra alvo agarrado: 50% de chance de atingir outro alvo", cannotObserve: "Não pode observar", attacksTargetTotalConcealment: "Alvos com camuflagem total", incapacitated: "Incapacitado", cannotAct: "Não pode agir", cannotReact: "Não pode reagir", reflexesAutoFail: "Falha automática em Reflexos", cannotHear: "Não pode ouvir", ritualsPoorCondition: "Rituais em condição ruim", mentalOnly: "Apenas ações mentais", resistanceAll10: "Resistência a dano 10" }[rule] ?? rule)).join(" · "))}</small>` : ""}</div><button class="danger-btn" data-action="remove-condition" data-id="${escapeHtml(condition.id)}" title="Remover condição" aria-label="Remover condição ${escapeHtml(condition.name)}">×</button></div>`).join("");
   const attacks = c.attacks.length ? c.attacks.map((attack) => `<div class="attack-row"><div class="attack-name-cell"><strong>${escapeHtml(attack.name || "Ataque")}</strong><div class="attack-actions"><button data-action="roll-attack-test" data-id="${escapeHtml(attack.id)}" ${attackBlocked(record, attack) ? "disabled" : ""}>Teste</button><button data-action="roll-attack-damage" data-id="${escapeHtml(attack.id)}" ${!attack.damage || attackBlocked(record, attack) ? "disabled" : ""}>Dano</button></div></div><span>${escapeHtml(attack.test || "—")}</span><span>${escapeHtml(attack.damage || "—")}</span><span>${escapeHtml([attack.critical, attack.range].filter(Boolean).join(" · ") || "—")}</span></div>`).join("") : `<div class="condition-empty">Nenhum ataque cadastrado.</div>`;
   const abilityGroups = [
     ["abilities", "Habilidade"], ["powers", "Poder"], ["actions", "Ação"],
@@ -196,10 +196,35 @@ function renderModal(modal) {
     return `<div class="modal-backdrop" data-action="backdrop-close"><section class="modal" role="dialog" aria-modal="true" aria-label="${title}"><header class="modal-head"><span class="modal-title">${title}</span><button class="modal-close" data-action="close-modal" aria-label="Fechar">×</button></header><div class="modal-content"><label class="modal-label" for="json-input">Modelo JSON da ameaça</label><textarea class="json-editor" id="json-input" spellcheck="false">${escapeHtml(modal.value)}</textarea><div class="help-text">Cole ou edite o objeto JSON. Os campos desconhecidos são preservados em creature e custom. A validação informa o caminho exato dos erros.</div>${modal.error ? `<div class="error-box">${escapeHtml(modal.error)}</div>` : ""}<div style="display:flex;gap:7px;flex-wrap:wrap;margin-top:9px"><button class="small-btn" data-action="copy-template">Copiar modelo</button><button class="small-btn" data-action="load-json-file">Abrir arquivo .json</button><input type="file" id="json-file" accept=".json,application/json" hidden></div></div><footer class="modal-foot"><button class="small-btn" data-action="close-modal">Cancelar</button><button class="primary-btn" data-action="submit-json">${modal.mode === "edit" ? "Validar e salvar" : "Validar e importar"}</button></footer></section></div>`;
   }
   if (modal.type === "condition") {
-    const form = modal.form ?? {};
-    const options = CONDITION_PRESETS.map((preset) => `<option value="${escapeHtml(preset.name)}" ${form.preset === preset.name ? "selected" : ""}>${escapeHtml(preset.name)} · ${escapeHtml(preset.group)}</option>`).join("");
-    const selectedPreset = CONDITION_PRESETS.find((preset) => preset.name === form.preset) ?? CONDITION_PRESETS[0];
-    return `<div class="modal-backdrop" data-action="backdrop-close"><section class="modal condition-modal" role="dialog" aria-modal="true" aria-label="Aplicar condição"><header class="modal-head"><span class="modal-title">Aplicar condição</span><button class="modal-close" data-action="close-modal">×</button></header><div class="modal-content"><section class="preset-condition-panel"><label class="modal-label" for="condition-preset">Condição predefinida · aplicação automática</label><div class="field-grid"><div class="field"><select id="condition-preset">${options}</select></div><div class="field"><input id="condition-preset-duration" placeholder="Duração / observação (opcional)" value="${escapeHtml(form.duration ?? "")}"></div></div><div class="preset-description" id="condition-preset-description">${escapeHtml(selectedPreset.description)}</div><button class="primary-btn" style="margin-top:8px" data-action="apply-preset-condition">Aplicar condição selecionada</button><div class="help-text">Reaplicar Fraco, Debilitado, Fatigado ou Exausto aciona o agravamento previsto na regra fornecida.</div></section><details class="custom-condition-details"><summary>Adicionar condição personalizada</summary><div class="field-grid" style="margin-top:9px"><div class="field"><label class="modal-label" for="condition-name">Nome</label><input id="condition-name" placeholder="Nome da condição" value="${escapeHtml(form.name ?? "")}"></div><div class="field"><label class="modal-label" for="condition-duration">Duração / observação</label><input id="condition-duration" placeholder="Ex.: até o fim da cena" value="${escapeHtml(form.duration ?? "")}"></div></div><div class="field" style="margin-top:10px"><label class="modal-label" for="condition-description">Descrição</label><textarea id="condition-description" placeholder="Detalhes da condição">${escapeHtml(form.description ?? "")}</textarea></div><div class="field" style="margin-top:10px"><label class="modal-label" for="condition-modifiers">Modificadores JSON</label><textarea id="condition-modifiers" class="json-editor" style="height:110px;min-height:80px" spellcheck="false">${escapeHtml(form.modifiers ?? "{}")}</textarea><div class="help-text">Exemplo: {"defense":-4,"diceCount":{"attack":-1}}.</div></div><button class="small-btn" style="margin-top:8px" data-action="submit-condition">Aplicar personalizada</button></details>${modal.error ? `<div class="error-box">${escapeHtml(modal.error)}</div>` : ""}</div><footer class="modal-foot"><button class="small-btn" data-action="close-modal">Fechar</button></footer></section></div>`;
+    const record = selectedRecord();
+    const activeNames = new Set((record?.runtime.conditions ?? []).map((condition) => condition.name));
+    const higherStageFor = {
+      "Fraco": ["Debilitado", "Inconsciente"],
+      "Debilitado": ["Inconsciente"],
+      "Fatigado": ["Exausto", "Inconsciente"],
+      "Exausto": ["Inconsciente"]
+    };
+    const options = CONDITION_PRESETS.map((preset) => {
+      const active = activeNames.has(preset.name);
+      const escalation = active ? getConditionEscalation(preset.name) : null;
+      const higherStage = (higherStageFor[preset.name] ?? []).find((name) => activeNames.has(name));
+      const lowerTierFor = { "Debilitado": "Fraco", "Exausto": "Fatigado" }[preset.name];
+      const lowerActive = lowerTierFor && activeNames.has(lowerTierFor);
+      const disabled = (active && !escalation) || Boolean(higherStage);
+      const stateLabel = active
+        ? (escalation ? `Reaplicar para agravar → ${escalation}` : "Já aplicada")
+        : higherStage
+          ? `Substituída por ${higherStage}`
+          : lowerActive
+            ? `Aplicar e substituir ${lowerTierFor}`
+            : "Clique para aplicar";
+      return `<button class="condition-picker-option ${active ? "is-active" : ""}" type="button" data-action="apply-preset-condition" data-condition="${escapeHtml(preset.name)}" ${disabled ? "disabled" : ""}>
+        <span class="condition-picker-top"><b>${escapeHtml(preset.name)}</b><span class="condition-picker-group">${escapeHtml(preset.group)}</span></span>
+        <span class="condition-picker-description">${escapeHtml(preset.description)}</span>
+        <span class="condition-picker-state">${escapeHtml(stateLabel)}</span>
+      </button>`;
+    }).join("");
+    return `<div class="modal-backdrop" data-action="backdrop-close"><section class="modal condition-modal" role="dialog" aria-modal="true" aria-label="Selecionar condição"><header class="modal-head"><span class="modal-title">Selecionar condição</span><button class="modal-close" data-action="close-modal" aria-label="Fechar">×</button></header><div class="modal-content"><p class="condition-picker-hint">Clique em uma condição para aplicá-la imediatamente. Os modificadores serão atualizados na ficha; você poderá removê-la a qualquer momento.</p><div class="condition-picker-list">${options}</div>${modal.error ? `<div class="error-box">${escapeHtml(modal.error)}</div>` : ""}</div><footer class="modal-foot"><button class="small-btn" data-action="close-modal">Fechar</button></footer></section></div>`;
   }
   if (modal.type === "delete") {
     return `<div class="modal-backdrop"><section class="modal" role="dialog" aria-modal="true"><header class="modal-head"><span class="modal-title">Excluir ameaça</span><button class="modal-close" data-action="close-modal">×</button></header><div class="modal-content"><p style="font:13px/1.5 var(--sans)">Excluir <strong>${escapeHtml(selectedRecord()?.creature.name)}</strong>? A ficha e o estado local serão removidos deste navegador.</p></div><footer class="modal-foot"><button class="small-btn" data-action="close-modal">Cancelar</button><button class="danger-btn" data-action="confirm-delete">Excluir definitivamente</button></footer></section></div>`;
@@ -304,32 +329,16 @@ async function handleClick(event) {
     await saveRecord(changeHitPoints(record, amount, action === "heal" ? "heal" : "damage"));
     return;
   }
-  if (action === "add-condition" && record) { state.modal = { type: "condition", error: "", form: { name: "", duration: "", description: "", modifiers: "{}", preset: "Agarrado" } }; render(); return; }
+  if (action === "add-condition" && record) { state.modal = { type: "condition", error: "" }; render(); return; }
   if (action === "apply-preset-condition" && record) {
     try {
-      const name = document.querySelector("#condition-preset")?.value;
-      const duration = document.querySelector("#condition-preset-duration")?.value ?? "";
-      const next = applyPresetCondition(record, name, duration);
-      await saveRecord(next); state.modal = null; render(); showToast(`${name} aplicada.`);
-    } catch (error) { state.modal.error = error.message; render(); }
-    return;
-  }
-  if (action === "submit-condition" && record) {
-    try {
-      const name = document.querySelector("#condition-name")?.value ?? "";
-      const duration = document.querySelector("#condition-duration")?.value ?? "";
-      const description = document.querySelector("#condition-description")?.value ?? "";
-      const modifiersText = document.querySelector("#condition-modifiers")?.value ?? "{}";
-      const modifiers = JSON.parse(modifiersText);
-      const next = addCondition(record, { name, duration, description, modifiers });
-      await saveRecord(next); state.modal = null; render(); showToast("Condição aplicada.");
+      const name = control.dataset.condition;
+      const next = applyPresetCondition(record, name);
+      await saveRecord(next);
+      state.modal = null;
+      render();
+      showToast(`${name} aplicada.`);
     } catch (error) {
-      state.modal.form = {
-        name: document.querySelector("#condition-name")?.value ?? "",
-        duration: document.querySelector("#condition-duration")?.value ?? "",
-        description: document.querySelector("#condition-description")?.value ?? "",
-        modifiers: document.querySelector("#condition-modifiers")?.value ?? "{}"
-      };
       state.modal.error = error.message;
       render();
     }
@@ -441,24 +450,8 @@ ROOT.addEventListener("input", (event) => {
     return;
   }
   if (event.target.id === "json-input" && state.modal?.type === "json") state.modal.value = event.target.value;
-  if (state.modal?.type === "condition") {
-    state.modal.form = {
-      name: ROOT.querySelector("#condition-name")?.value ?? "",
-      duration: ROOT.querySelector("#condition-duration")?.value ?? "",
-      description: ROOT.querySelector("#condition-description")?.value ?? "",
-      modifiers: ROOT.querySelector("#condition-modifiers")?.value ?? "{}",
-      preset: ROOT.querySelector("#condition-preset")?.value ?? "Agarrado"
-    };
-  }
 });
 ROOT.addEventListener("change", async (event) => {
-  if (event.target.id === "condition-preset") {
-    const preset = CONDITION_PRESETS.find((item) => item.name === event.target.value);
-    const description = ROOT.querySelector("#condition-preset-description");
-    if (description && preset) description.textContent = preset.description;
-    if (state.modal?.form) state.modal.form.preset = event.target.value;
-    return;
-  }
   if (event.target.id === "json-file" && event.target.files?.[0]) {
     const file = event.target.files[0];
     try { state.modal.value = await file.text(); state.modal.error = ""; render(); }
