@@ -5,11 +5,11 @@
   "description": "Fichas privadas e interativas de Ameaças de Ordem Paranormal para o Mestre.",
   "author": "Onze1Onze",
   "homepage_url": "https://github.com/Onze1Onze/Sistema-Utilidade/tree/main/outro-lado-painel-ameacas",
-  "icon": "https://rawcdn.githack.com/Onze1Onze/Sistema-Utilidade/fe5f5b32e97d6be0fb6848078213ab1c50851146/outro-lado-painel-ameacas/icon.svg",
+  "icon": "https://rawcdn.githack.com/Onze1Onze/Sistema-Utilidade/5461fb23e3313c017d1a57d22781ba4f68f39847/outro-lado-painel-ameacas/icon.svg",
   "action": {
     "title": "Painel de Ameaças",
-    "icon": "https://rawcdn.githack.com/Onze1Onze/Sistema-Utilidade/fe5f5b32e97d6be0fb6848078213ab1c50851146/outro-lado-painel-ameacas/icon.svg",
-    "popover": "https://rawcdn.githack.com/Onze1Onze/Sistema-Utilidade/fe5f5b32e97d6be0fb6848078213ab1c50851146/outro-lado-painel-ameacas/index.html",
+    "icon": "https://rawcdn.githack.com/Onze1Onze/Sistema-Utilidade/5461fb23e3313c017d1a57d22781ba4f68f39847/outro-lado-painel-ameacas/icon.svg",
+    "popover": "https://rawcdn.githack.com/Onze1Onze/Sistema-Utilidade/5461fb23e3313c017d1a57d22781ba4f68f39847/outro-lado-painel-ameacas/index.html",
     "width": 1120,
     "height": 820
   }
