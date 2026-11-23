@@ -3,52 +3,28 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
-  <meta name="theme-color" content="#080a0d" />
-  <meta name="color-scheme" content="dark" />
-  <title>Sistema de Fechaduras</title>
+  <meta name="theme-color" content="#f1f0ec" />
+  <meta name="color-scheme" content="light" />
+  <title>Outro Lado — Painel de Ameaças</title>
+  <link rel="icon" href="./icon.svg" type="image/svg+xml" />
   <link rel="stylesheet" href="./styles.css" />
   <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin />
   <link rel="modulepreload" href="https://cdn.jsdelivr.net/npm/@owlbear-rodeo/sdk@3.1.0/+esm" crossorigin />
   <script>
-    // Buffer do handshake: o host envia OBR_READY uma única vez.
-    // O SDK (importado como módulo estático) recebe uma repetição se o download atrasar.
-    window.__OBR_READY_BUFFER__ = null;
+    // OBR_READY é enviado uma única vez pelo host; o buffer evita perder o handshake
+    // enquanto o módulo do SDK é baixado e avaliado.
+    window.__OL_OBR_READY_BUFFER__ = null;
     window.addEventListener("message", function (event) {
       if (event.source !== window.parent || !event.data || event.data.id !== "OBR_READY") return;
-      window.__OBR_READY_BUFFER__ = {
-        data: event.data,
-        origin: event.origin,
-        replayed: false
-      };
+      window.__OL_OBR_READY_BUFFER__ = { data: event.data, origin: event.origin, replayed: false };
     });
   </script>
-  <style>
-    html,body{margin:0;width:100%;height:100%;background:#080a0d;color:#e8edf3;font-family:system-ui,sans-serif}
-    #app{height:100%;min-height:0}
-    .fallback{height:100%;display:grid;grid-template-rows:54px 1fr 30px;padding:0 14px;box-sizing:border-box}
-    .fallback header{display:flex;align-items:center;gap:12px;border-bottom:1px solid #ff303a;color:#bfc8d2;font-size:13px;letter-spacing:.08em}
-    .fallback .mark{width:24px;height:24px;border:2px solid #ff303a;transform:rotate(45deg)}
-    .fallback .body{display:grid;grid-template-columns:240px 1fr;gap:12px;padding:12px 0}
-    .fallback aside,.fallback article{border:1px solid #28313a;padding:12px;background:#090d11}
-    .fallback aside p{border:1px solid #333c46;padding:12px;margin:5px 0;color:#c4ccd5}
-    .fallback h1{font-size:20px;font-weight:600}
-    .fallback .hint{color:#94a0ad;font-size:13px}
-    .fallback footer{border-top:1px solid #28313a;display:grid;place-items:center;color:#8e9aa5;font-size:11px}
-    @media(max-width:620px){.fallback .body{grid-template-columns:1fr;grid-template-rows:auto 1fr}.fallback aside{display:flex;gap:5px;padding:5px}.fallback aside p{flex:1;text-align:center;font-size:11px;padding:8px 3px}.fallback header{font-size:11px}}
-  </style>
 </head>
 <body>
-  <main id="app" class="app">
-    <section class="fallback">
-      <header><span class="mark"></span><span>INTERFACE DE CONTROLE</span></header>
-      <div class="body">
-        <aside><p>♙ Abrir Fechadura</p><p>⌘ Hacking</p><p>▦ Painel Numérico</p></aside>
-        <article><h1>ABRIR FECHADURA</h1><p class="hint">Configure a dificuldade e prepare o desafio para os jogadores.</p></article>
-      </div>
-      <footer>SISTEMA DE ACESSO · OBR</footer>
-    </section>
+  <main id="app" aria-live="polite">
+    <div class="boot-screen"><span class="boot-mark">OL</span><span>INICIALIZANDO PAINEL DE AMEAÇAS</span></div>
   </main>
   <noscript>Esta extensão precisa de JavaScript habilitado.</noscript>
-  <script type="module" src="./app.js"></script>
+  <script type="module" src="./src/main.js"></script>
 </body>
 </html>
