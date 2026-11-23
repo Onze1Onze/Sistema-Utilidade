@@ -6,7 +6,7 @@ Extensão para Owlbear Rodeo voltada ao gerenciamento privado de fichas de Amea�
 
 Manifesto da pasta:
 
-    https://cdn.jsdelivr.net/gh/Onze1Onze/Sistema-Utilidade@main/outro-lado-painel-ameacas/manifest.json
+    https://raw.githubusercontent.com/Onze1Onze/Sistema-Utilidade/main/outro-lado-painel-ameacas/manifest.json
 
 No Owlbear Rodeo, abra **Extras → Extensions → Add**, cole a URL do manifesto e ative a extensão na sala. A ação **Painel de Ameaças** aparece na barra superior.
 
@@ -37,6 +37,10 @@ O schema é versionado (`schemaVersion: 1`) e mantém propriedades desconhecidas
 - Feedback animado de rolagem e histórico local de alterações relevantes.
 - Interface responsiva com estrutura e linguagem visual inspiradas na ficha de referência anexada, reconstruídas em HTML/CSS.
 
+## Diagnóstico de inicialização
+
+O carregador do SDK tenta provedores independentes em ordem e apresenta a URL/origem e a mensagem de erro de cada tentativa quando todas falham. Não existe mais preload obrigatório do jsDelivr; uma falha 503 isolada desse provedor não interrompe o carregamento.
+
 ## Estrutura
 
 - `manifest.json` — manifesto do Owlbear.
@@ -49,8 +53,8 @@ O schema é versionado (`schemaVersion: 1`) e mantém propriedades desconhecidas
 
 ## Desenvolvimento e testes
 
-O SDK Owlbear é importado estaticamente na versão 3.1.0, seguindo o padrão já usado no repositório. Para executar os testes de lógica com Node.js 20 ou superior:
+O SDK oficial do Owlbear (3.1.0) é carregado com fallback entre esm.sh, jsDelivr e Skypack. O handshake `OBR_READY` é armazenado antes do carregamento e reentregue ao SDK, pois o Owlbear envia esse evento uma única vez. O link do manifesto usa diretamente `raw.githubusercontent.com` (origem do GitHub, sem CDN); os arquivos da interface são servidos por `raw.githack` com tipos MIME próprios para HTML, CSS, JavaScript e SVG. Para executar os testes de lógica com Node.js 20 ou superior:
 
-    node --test outro-lado-painel-ameacas/tests/*.test.js
+    cd outro-lado-painel-ameacas && npm test && npm run check
 
 A extensão é estática e não requer etapa de build. As rolagens e modificadores são genéricos e configuráveis; a extensão não define regras oficiais de condições nem preenche estatísticas de criaturas que não foram fornecidas pelo Mestre.

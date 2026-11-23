@@ -1,4 +1,4 @@
-import OBR from "https://cdn.jsdelivr.net/npm/@owlbear-rodeo/sdk@3.1.0/+esm";
+import { loadOwlbearSDK } from "./sdk-loader.js";
 import {
   createThreatTemplate, normalizeThreatPayload, exportThreatRecord, computeEffectiveStats,
   addCondition, removeCondition, changeHitPoints, changeResource, pushHistory, ThreatValidationError
@@ -396,42 +396,62 @@ ROOT.addEventListener("change", async (event) => {
   if (event.target.id === "json-input") state.modal.value = event.target.value;
 });
 
+let OBR = null;
+
 function replayBufferedReady() {
-  if (OBR.isReady) return;
+  if (!OBR || OBR.isReady) return;
   const pending = window.__OL_OBR_READY_BUFFER__;
   if (!pending || pending.replayed) return;
   pending.replayed = true;
+  // O SDK oficial valida event.origin; MessageEvent permite entregar o handshake
+  // que o Owlbear envia uma única vez enquanto os provedores do SDK são tentados.
   window.dispatchEvent(new MessageEvent("message", { data: pending.data, origin: pending.origin }));
 }
 
-replayBufferedReady();
-const readyTimeout = window.setTimeout(() => {
-  if (!OBR.isReady && state.role === null) {
-    state.role = "ERROR";
-    ROOT.innerHTML = `<section class="access-denied"><div class="access-card"><h1>Owlbear não inicializou</h1><p>Abra esta extensão dentro de uma sala do Owlbear Rodeo e confirme que a URL do manifesto está acessível.</p></div></section>`;
-  }
-}, 15000);
+function renderBootstrapError(error) {
+  state.role = "ERROR";
+  const details = escapeHtml(error?.message ?? String(error));
+  ROOT.innerHTML = `<section class="access-denied"><div class="access-card"><div class="access-icon">!</div><h1>Não foi possível iniciar o Painel</h1><p>O SDK do Owlbear não foi carregado. O painel tentou mais de um provedor e nenhuma origem respondeu corretamente.</p><pre class="diagnostic-details">${details}</pre><p>Confira a conexão e tente reabrir a extensão. Se o problema persistir, envie este diagnóstico junto com o endereço do manifesto.</p></div></section>`;
+}
 
-OBR.onReady(async () => {
-  window.clearTimeout(readyTimeout);
+async function startOwlbearIntegration() {
   try {
-    if (!OBR.isAvailable) throw new Error("A extensão não está incorporada ao Owlbear Rodeo.");
-    const role = await OBR.player.getRole();
-    state.role = role;
-    if (role !== "GM") {
-      // A verificação de papel acontece antes de abrir o banco privado.
-      try { await OBR.action.close(); } catch { /* ação já fechada */ }
-      render();
-      return;
-    }
-    await store.open();
-    state.records = await store.list();
-    state.records.sort((a, b) => new Date(b.updatedAt ?? b.createdAt) - new Date(a.updatedAt ?? a.createdAt));
-    state.selectedId = state.records[0]?.id ?? null;
-    render();
-    await OBR.action.setTitle("Painel de Ameaças · Mestre");
+    const loaded = await loadOwlbearSDK();
+    OBR = loaded.OBR;
+    window.__OL_OBR_SDK_SOURCE__ = loaded.source;
+    replayBufferedReady();
+    const readyTimeout = window.setTimeout(() => {
+      if (!OBR.isReady && state.role === null) {
+        renderBootstrapError(new Error("O SDK foi baixado, mas não recebeu OBR_READY do Owlbear em 20 segundos. Isso geralmente indica que o popover foi aberto fora do Owlbear ou que a origem do iframe não corresponde ao parâmetro obrref."));
+      }
+    }, 20000);
+
+    OBR.onReady(async () => {
+      window.clearTimeout(readyTimeout);
+      try {
+        if (!OBR.isAvailable) throw new Error("A extensão não está incorporada ao Owlbear Rodeo. Abra o painel a partir de uma sala ativa.");
+        const role = await OBR.player.getRole();
+        state.role = role;
+        if (role !== "GM") {
+          // A verificação de papel acontece antes de abrir o banco privado.
+          try { await OBR.action.close(); } catch { /* ação já fechada */ }
+          render();
+          return;
+        }
+        await store.open();
+        state.records = await store.list();
+        state.records.sort((a, b) => new Date(b.updatedAt ?? b.createdAt) - new Date(a.updatedAt ?? a.createdAt));
+        state.selectedId = state.records[0]?.id ?? null;
+        render();
+        await OBR.action.setTitle("Painel de Ameaças · Mestre");
+      } catch (error) {
+        state.role = "ERROR";
+        ROOT.innerHTML = `<section class="access-denied"><div class="access-card"><h1>Falha ao inicializar</h1><pre class="diagnostic-details">${escapeHtml(error.message)}</pre></div></section>`;
+      }
+    });
   } catch (error) {
-    state.role = "ERROR";
-    ROOT.innerHTML = `<section class="access-denied"><div class="access-card"><h1>Falha ao inicializar</h1><p>${escapeHtml(error.message)}</p></div></section>`;
+    renderBootstrapError(error);
   }
-});
+}
+
+void startOwlbearIntegration();
