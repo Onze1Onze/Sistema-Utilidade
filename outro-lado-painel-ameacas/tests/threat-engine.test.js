@@ -31,7 +31,7 @@ test("validação aponta caminho e expressão incorreta", () => {
 
 test("validação aceita apenas senseUse observe ou hear em testes de perícia", () => {
   const data = createThreatTemplate();
-  data.creature.skillTests[0].senseUse = "smell";
+  data.creature.skillTests = [{ name: "Percepção", attribute: "pre", test: "1d20+0", damage: "", senseUse: "smell" }];
   const errors = validateThreatPayload(data);
   assert.ok(errors.some((entry) => entry.path === "creature.skillTests[0].senseUse"));
 });
@@ -81,7 +81,7 @@ test("categorias de habilidades, poderes, ações e reações são preservadas n
   const exported = exportThreatRecord(record);
   assert.equal(exported.creature.abilities[0].name, "Marca");
   assert.equal(exported.creature.powers[0].name, "Vínculo");
-  assert.equal(exported.creature.actions[0].name, "Investida");
+  assert.equal(exported.creature.actions.other[0].name, "Investida");
   assert.equal(exported.creature.specialActions[0].name, "Ruptura");
   assert.equal(exported.creature.reactions[0].name, "Contra-ataque");
 });
@@ -97,4 +97,74 @@ test("skillTests e histórico de rolagens sobrevivem à exportação e reimporta
   assert.equal(imported.creature.skillTests[0].damage, "2d6+3");
   assert.equal(imported.runtime.rollHistory[0].title, "Atletismo");
   assert.equal(imported.runtime.rollHistory[0].total, record.runtime.rollHistory[0].total);
+});
+
+test("modelo JSON usa a nova estrutura de abilities e actions", () => {
+  const template = createThreatTemplate();
+  assert.deepEqual(Object.keys(template.creature.actions), ["agredir", "other"]);
+  assert.deepEqual(template.creature.abilities[0], {
+    name: "", description: "", damageDice: "", dt: null, savingThrow: ""
+  });
+  assert.equal(template.creature.attacks[0].critical, "19/x2");
+  assert.deepEqual(template.creature.actions.agredir[0], {
+    name: "", test: "1d20+0", damage: "", criticalMargin: 19,
+    criticalMultiplier: "x2", range: "Corpo a corpo", effects: "", description: ""
+  });
+  assert.deepEqual(Object.keys(template.state), ["hpCurrent", "conditions", "resources", "history"]);
+  assert.equal("skillTests" in template.creature, false);
+});
+
+test("validação aceita abilities com damageDice, DT e savingThrow", () => {
+  const payload = createThreatTemplate();
+  payload.creature.abilities[0] = {
+    name: "Grito", description: "Ataque mental", damageDice: "3d8+4",
+    dt: 25, savingThrow: "Vontade"
+  };
+  assert.deepEqual(validateThreatPayload(payload), []);
+});
+
+test("validação acusa a expressão inválida em actions.agredir e abilities.damageDice", () => {
+  const payload = createThreatTemplate();
+  payload.creature.actions.agredir[0].test = "2d20+";
+  payload.creature.abilities[0].damageDice = "3d8+";
+  const errors = validateThreatPayload(payload);
+  assert.ok(errors.some((item) => item.path === "creature.actions.agredir[0].test"));
+  assert.ok(errors.some((item) => item.path === "creature.abilities[0].damageDice"));
+});
+
+test("normalização preserva ações por categoria e gera IDs para cada entrada", () => {
+  const payload = createThreatTemplate();
+  payload.creature.abilities[0] = { name: "Mordida", description: "Morde", damageDice: "2d8", dt: 18, savingThrow: "Reflexos" };
+  payload.creature.actions.agredir[0].name = "Garras";
+  payload.creature.actions.other = [{ name: "Rugido", description: "Assusta" }];
+  const record = normalizeThreatPayload(payload);
+  assert.equal(record.creature.abilities[0].damageDice, "2d8");
+  assert.equal(record.creature.actions.agredir[0].name, "Garras");
+  assert.equal(record.creature.actions.other[0].name, "Rugido");
+  assert.ok(record.creature.abilities[0].id);
+  assert.ok(record.creature.actions.agredir[0].id);
+  assert.ok(record.creature.actions.other[0].id);
+});
+
+test("ações legadas em array migram para actions.other sem perder entradas", () => {
+  const payload = createThreatTemplate();
+  payload.creature.actions = [{ name: "Investida", description: "Avança" }];
+  const record = normalizeThreatPayload(payload);
+  assert.deepEqual(record.creature.actions.agredir, []);
+  assert.equal(record.creature.actions.other[0].name, "Investida");
+});
+
+test("ciclo de exportação preserva nova estrutura de ações e habilidades", () => {
+  const payload = createThreatTemplate();
+  payload.creature.abilities = [{ name: "Sopro", description: "Cone", damageDice: "4d6+8", dt: 20, savingThrow: "Fortitude" }];
+  payload.creature.actions.agredir = [{ name: "Garras", test: "2d20+10", damage: "3d8+5", criticalMargin: 19, criticalMultiplier: "x3", range: "Corpo a corpo" }];
+  payload.creature.actions.other = [{ name: "Uivo", description: "Som alto" }];
+  const normalized = normalizeThreatPayload(payload);
+  const imported = normalizeThreatPayload(exportThreatRecord(normalized), { id: "schema-roundtrip" });
+  assert.equal(imported.creature.abilities[0].damageDice, "4d6+8");
+  assert.equal(imported.creature.abilities[0].dt, 20);
+  assert.equal(imported.creature.abilities[0].savingThrow, "Fortitude");
+  assert.equal(imported.creature.actions.agredir[0].criticalMargin, 19);
+  assert.equal(imported.creature.actions.agredir[0].criticalMultiplier, "x3");
+  assert.equal(imported.creature.actions.other[0].name, "Uivo");
 });

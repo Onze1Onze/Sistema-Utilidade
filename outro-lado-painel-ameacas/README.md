@@ -1,6 +1,6 @@
 # Outro Lado — Painel de Ameaças
 
-Versão 1.2.1. Extensão para Owlbear Rodeo voltada ao gerenciamento privado de fichas de Ameaças de Ordem Paranormal pelo Mestre.
+Versão 1.3.0. Extensão para Owlbear Rodeo voltada ao gerenciamento privado de fichas de Ameaças de Ordem Paranormal pelo Mestre.
 
 ## Instalação
 
@@ -71,3 +71,10 @@ O SDK oficial do Owlbear (3.1.0) é carregado com fallback entre esm.sh, jsDeliv
     cd outro-lado-painel-ameacas && npm test && npm run check
 
 A extensão é estática e não requer etapa de build. As condições predefinidas implementam os efeitos explicitados na lista configurada no projeto. Restrições que dependem de contexto externo à ficha — como escolher o alvo errado em um ataque à distância contra alguém envolvido em agarrar, perceber inimigos no mapa ou resolver camuflagem total — aparecem como avisos operacionais para o Mestre; não são decididas automaticamente sem integração com o sistema de alvos do Owlbear. Lentidão é representada como metade do deslocamento, e imóvel como deslocamento zero.
+
+
+## Modelo de dados 1.3.0
+
+O modelo padrão de criação agora segue a estrutura organizada por grupos: `abilities` usa `damageDice`, `dt` e `savingThrow`; `actions` é um objeto com as listas `agredir` e `other`. Cada ação de Agredir possui teste, dano, margem e multiplicador críticos, alcance, efeitos e descrição. O formulário também apresenta essas informações e rolagens separadas na ficha.
+
+Fichas antigas que usam `actions` como array são migradas automaticamente para `actions.other`; as entradas existentes são preservadas. O campo legado `skillTests` continua sendo aceito na importação, mas não aparece no novo modelo padrão.

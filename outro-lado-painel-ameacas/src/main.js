@@ -136,13 +136,39 @@ function renderSheet(record) {
     return `<div class="sheet-block"><h3 class="block-title">${title}</h3>${list ? `<div class="resistance-line">${escapeHtml(list)}</div>` : `<div class="condition-empty">—</div>`}</div>`;
   };
   const currentConditions = r.conditions.map((condition) => `<div class="condition-entry"><div><div class="condition-entry-title"><b>${escapeHtml(condition.name)}</b>${condition.group ? `<span>${escapeHtml(condition.group)}</span>` : ""}</div>${condition.duration ? `<small>${escapeHtml(condition.duration)}</small>` : ""}${condition.description ? `<small>${escapeHtml(condition.description)}</small>` : ""}${condition.rules?.length ? `<small class="condition-rule-tags">${escapeHtml(condition.rules.map((rule) => ({ immobile: "Imóvel", onlyLightWeapons: "Apenas armas leves", rangedAttackMisfire50: "Ataques à distância contra alvo agarrado: 50% de chance de atingir outro alvo", cannotObserve: "Não pode observar", attacksTargetTotalConcealment: "Alvos com camuflagem total", incapacitated: "Incapacitado", cannotAct: "Não pode agir", cannotReact: "Não pode reagir", reflexesAutoFail: "Falha automática em Reflexos", cannotHear: "Não pode ouvir", ritualsPoorCondition: "Rituais em condição ruim", mentalOnly: "Apenas ações mentais", resistanceAll10: "Resistência a dano 10" }[rule] ?? rule)).join(" · "))}</small>` : ""}</div><button class="danger-btn" data-action="remove-condition" data-id="${escapeHtml(condition.id)}" title="Remover condição" aria-label="Remover condição ${escapeHtml(condition.name)}">×</button></div>`).join("");
-  const attacks = c.attacks.length ? c.attacks.map((attack) => `<div class="attack-row"><div class="attack-name-cell"><strong>${escapeHtml(attack.name || "Ataque")}</strong><div class="attack-actions"><button data-action="roll-attack-test" data-id="${escapeHtml(attack.id)}" ${attackBlocked(record, attack) ? "disabled" : ""}>Teste</button><button data-action="roll-attack-damage" data-id="${escapeHtml(attack.id)}" ${!attack.damage || attackBlocked(record, attack) ? "disabled" : ""}>Dano</button></div></div><span>${escapeHtml(attack.test || "—")}</span><span>${escapeHtml(attack.damage || "—")}</span><span>${escapeHtml([attack.critical, attack.range].filter(Boolean).join(" · ") || "—")}</span></div>`).join("") : `<div class="condition-empty">Nenhum ataque cadastrado.</div>`;
-  const abilityGroups = [
-    ["abilities", "Habilidade"], ["powers", "Poder"], ["actions", "Ação"],
-    ["specialActions", "Ação especial"], ["reactions", "Reação"]
+  const attackEntries = [
+    ...(c.attacks ?? []).map((attack) => ({ ...attack, source: "attacks" })),
+    ...(c.actions?.agredir ?? []).map((attack) => ({ ...attack, source: "agredir" }))
   ];
-  const abilityEntries = abilityGroups.flatMap(([key, label]) => (c[key] ?? []).map((ability) => ({ ...ability, groupKey: key, groupLabel: label })));
-  const abilities = abilityEntries.length ? abilityEntries.map((ability) => { const blocked = actionBlocked(record, ability, { isReaction: ability.groupKey === "reactions" }); return `<article class="ability-card"><div class="card-head"><div><div class="card-name">${escapeHtml(ability.name || ability.groupLabel)}</div><div class="card-sub">${escapeHtml(ability.actionType || ability.groupLabel)}</div></div>${ability.roll ? `<span class="entry-vd">${escapeHtml(ability.roll)}</span>` : ""}</div><div class="card-body">${escapeHtml(ability.description || "Sem descrição.")}${ability.effects ? `<div class="card-sub">Efeitos: ${escapeHtml(typeof ability.effects === "string" ? ability.effects : JSON.stringify(ability.effects))}</div>` : ""}</div><div class="card-actions"><button class="small-btn" data-action="use-ability" data-kind="${escapeHtml(ability.groupKey)}" data-id="${escapeHtml(ability.id)}" ${blocked ? "disabled" : ""}>${ability.roll ? "Executar / rolar" : "Consultar habilidade"}</button></div></article>`; }).join("") : `<div class="condition-empty">Nenhuma habilidade ou ação cadastrada.</div>`;
+  const attacks = attackEntries.length ? attackEntries.map((attack) => {
+    const critical = attack.critical || (attack.criticalMargin ? `${attack.criticalMargin}/${attack.criticalMultiplier || "x2"}` : "");
+    return `<div class="attack-row"><div class="attack-name-cell"><strong>${escapeHtml(attack.name || (attack.source === "agredir" ? "Agredir" : "Ataque"))}</strong><div class="attack-actions"><button data-action="roll-attack-test" data-source="${attack.source}" data-id="${escapeHtml(attack.id)}" ${attackBlocked(record, attack) ? "disabled" : ""}>Teste</button><button data-action="roll-attack-damage" data-source="${attack.source}" data-id="${escapeHtml(attack.id)}" ${!attack.damage || attackBlocked(record, attack) ? "disabled" : ""}>Dano</button></div></div><span>${escapeHtml(attack.test || "—")}</span><span>${escapeHtml(attack.damage || "—")}</span><span>${escapeHtml([critical, attack.range].filter(Boolean).join(" · ") || "—")}</span></div>`;
+  }).join("") : `<div class="condition-empty">Nenhum ataque cadastrado.</div>`;
+  const abilityGroups = [
+    ["abilities", "Habilidade", c.abilities ?? []],
+    ["powers", "Poder", c.powers ?? []],
+    ["actions.other", "Outra ação", c.actions?.other ?? []],
+    ["specialActions", "Ação especial", c.specialActions ?? []],
+    ["reactions", "Reação", c.reactions ?? []]
+  ];
+  const abilityEntries = abilityGroups.flatMap(([key, label, entries]) => entries.map((ability) => ({ ...ability, groupKey: key, groupLabel: label })))
+    .filter((ability) => Boolean(ability.name || ability.description || ability.damageDice || ability.roll || ability.test || ability.damage || ability.dt !== null && ability.dt !== undefined || ability.savingThrow));
+  const abilities = abilityEntries.length ? abilityEntries.map((ability) => {
+    const group = ability.groupKey === "actions.other" ? "actions" : ability.groupKey;
+    const blocked = actionBlocked(record, ability, { isReaction: ability.groupKey === "reactions" });
+    const testExpression = ability.test || (ability.rollType === "damage" ? "" : ability.roll) || "";
+    const damageExpression = ability.damageDice || ability.damage || (ability.rollType === "damage" ? ability.roll : "") || "";
+    const rollButtons = [
+      testExpression ? `<button class="small-btn" data-action="use-ability-test" data-kind="${escapeHtml(ability.groupKey)}" data-id="${escapeHtml(ability.id)}" ${blocked ? "disabled" : ""}>Rolar teste</button>` : "",
+      damageExpression ? `<button class="small-btn" data-action="use-ability-damage" data-kind="${escapeHtml(ability.groupKey)}" data-id="${escapeHtml(ability.id)}" ${blocked ? "disabled" : ""}>Rolar dano</button>` : ""
+    ].join("");
+    const metadata = [
+      ability.dt !== null && ability.dt !== undefined ? `DT ${ability.dt}` : "",
+      ability.savingThrow ? `Resistência: ${ability.savingThrow}` : "",
+      ability.criticalMargin ? `Crítico ${ability.criticalMargin}/${ability.criticalMultiplier || "x2"}` : ""
+    ].filter(Boolean).join(" · ");
+    return `<article class="ability-card"><div class="card-head"><div><div class="card-name">${escapeHtml(ability.name || ability.groupLabel)}</div><div class="card-sub">${escapeHtml(ability.actionType || ability.groupLabel)}${metadata ? ` · ${escapeHtml(metadata)}` : ""}</div></div>${damageExpression ? `<span class="entry-vd">${escapeHtml(damageExpression)}</span>` : ""}</div><div class="card-body">${escapeHtml(ability.description || "Sem descrição.")}${ability.effects ? `<div class="card-sub">Efeitos: ${escapeHtml(typeof ability.effects === "string" ? ability.effects : JSON.stringify(ability.effects))}</div>` : ""}</div><div class="card-actions">${rollButtons || `<button class="small-btn" data-action="use-ability" data-kind="${escapeHtml(ability.groupKey)}" data-id="${escapeHtml(ability.id)}" ${blocked ? "disabled" : ""}>Consultar</button>`}</div></article>`;
+  }).join("") : `<div class="condition-empty">Nenhuma habilidade, poder ou ação adicional cadastrada.</div>`;
   const resources = c.resources.length ? c.resources.map((resource) => {
     const current = r.resources[resource.id] ?? resource.current ?? resource.max ?? 0;
     const max = resource.max ?? "—";
@@ -245,11 +271,11 @@ function renderModal(modal) {
 
 function renderRollDetails(result) {
   if (!result) return "";
-  const results = result.kind === "attack" ? [result.test, result.damage].filter(Boolean) : result.roll ? [result.roll] : result.test ? [result.test] : result.parts ? [result] : [];
-  const title = result.kind === "attack" ? "ATAQUE" : result.kind === "ability" ? "HABILIDADE" : result.kind === "skill" ? "TESTE DE PERÍCIA" : result.kind === "damage" ? "ROLAGEM DE DANO" : result.kind === "forced-failure" ? "FALHA AUTOMÁTICA" : "TESTE";
+  const results = ["attack", "ability"].includes(result.kind) ? [result.test, result.damage].filter(Boolean) : result.roll ? [result.roll] : result.test ? [result.test] : result.parts ? [result] : [];
+  const title = result.kind === "attack" ? "ATAQUE" : result.kind === "ability" ? "HABILIDADE / AÇÃO" : result.kind === "skill" ? "TESTE DE PERÍCIA" : result.kind === "damage" ? "ROLAGEM DE DANO" : result.kind === "forced-failure" ? "FALHA AUTOMÁTICA" : "TESTE";
   let html = `<div><strong>${title}</strong></div>`;
   for (const [index, roll] of results.entries()) {
-    const partLabel = result.kind === "attack" ? (result.part === "damage" ? "Dano" : index === 0 ? "Teste de ataque" : "Dano") : result.kind === "damage" ? "Dano" : result.kind === "skill" ? "Teste de perícia" : "Rolagem";
+    const partLabel = ["attack", "ability"].includes(result.kind) ? (result.part === "damage" ? "Dano" : result.part === "test" ? "Teste" : index === 0 ? "Teste" : "Dano") : result.kind === "damage" ? "Dano" : result.kind === "skill" ? "Teste de perícia" : "Rolagem";
     html += `<div class="roll-part"><b>${partLabel}</b><br>${escapeHtml(roll.expression)} = <strong>${roll.total}</strong><br>${roll.parts.map((part) => part.type === "dice" ? `${part.sign < 0 ? "−" : ""}${part.count}d${part.sides}: [${part.rolls.join(", ")}]` : `Modificador: ${part.value}`).join(" · ")}</div>`;
   }
   if (result.critical) html += `<div class="roll-part">Crítico: ${escapeHtml(result.critical)} · Alcance: ${escapeHtml(result.range)}</div>`;
@@ -352,7 +378,9 @@ async function handleClick(event) {
   if (action === "show-history" && record) { state.modal = { type: "history" }; render(); return; }
   if (action === "show-roll-history" && record) { state.modal = { type: "roll-history" }; render(); return; }
   if (["roll-attack", "roll-attack-test", "roll-attack-damage"].includes(action) && record) {
-    const attack = record.creature.attacks.find((entry) => entry.id === control.dataset.id);
+    const source = control.dataset.source === "agredir" ? "agredir" : "attacks";
+    const attackList = source === "agredir" ? (record.creature.actions?.agredir ?? []) : (record.creature.attacks ?? []);
+    const attack = attackList.find((entry) => entry.id === control.dataset.id);
     if (attack) {
       if (attackBlocked(record, attack)) { showToast(computeEffectiveStats(record).rules.includes("onlyLightWeapons") && !canUseAttackWhileGrappled(attack) ? "Agarrado: somente ataques com armas leves estão permitidos." : "Esta condição impede a criatura de realizar essa ação.", true); return; }
       const part = action === "roll-attack-test" ? "test" : action === "roll-attack-damage" ? "damage" : "both";
@@ -376,9 +404,10 @@ async function handleClick(event) {
     else if (item?.damage) showToast("A condição atual impede essa ação.", true);
     return;
   }
-  if (action === "use-ability" && record) {
+  if (["use-ability", "use-ability-test", "use-ability-damage"].includes(action) && record) {
     const group = control.dataset.kind || "abilities";
-    const ability = (record.creature[group] ?? []).find((entry) => entry.id === control.dataset.id);
+    const entries = group === "actions.other" ? (record.creature.actions?.other ?? []) : (record.creature[group] ?? []);
+    const ability = entries.find((entry) => entry.id === control.dataset.id);
     if (!ability) return;
     if (actionBlocked(record, ability, { isReaction: group === "reactions" })) { showToast("A condição atual impede essa ação. Sob Paralisado, somente ações puramente mentais podem ser executadas.", true); return; }
     const resourceId = ability.resourceId;
@@ -390,7 +419,9 @@ async function handleClick(event) {
       currentRecord = changeResource(record, resourceId, -cost);
       await saveRecord(currentRecord);
     }
-    startRoll(currentRecord, () => rollAbility(currentRecord, ability), ability.roll || "Sem rolagem", ability.name || "Habilidade");
+    const part = action === "use-ability-test" ? "test" : action === "use-ability-damage" ? "damage" : "both";
+    const expression = part === "test" ? (ability.test || ability.roll || "") : part === "damage" ? (ability.damageDice || ability.damage || ability.roll || "") : [ability.test || ability.roll, ability.damageDice || ability.damage].filter(Boolean).join(" · ");
+    startRoll(currentRecord, () => rollAbility(currentRecord, ability, part), expression || "Sem rolagem", ability.name || "Habilidade");
     return;
   }
   if (action === "roll-stat") {
@@ -414,7 +445,7 @@ function startRoll(record, calculate, expression, title) {
   window.setTimeout(async () => {
     try {
       const result = calculate();
-      const displayTotal = result.kind === "attack" ? (result.test?.total ?? result.damage?.total ?? "—") : result.roll?.total ?? result.total ?? "—";
+      const displayTotal = ["attack", "ability"].includes(result.kind) ? (result.test?.total ?? result.damage?.total ?? "—") : result.roll?.total ?? result.total ?? "—";
       if (record && record.id === selectedRecord()?.id) {
         const next = structuredClone(record);
         pushRollHistory(next, title, result);

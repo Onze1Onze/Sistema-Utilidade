@@ -13,13 +13,30 @@ export function rollAttack(record, attack, part = "both") {
   return { kind: "attack", title: attack.name, part, test, damage, critical: attack.critical ?? "", range: attack.range ?? "", effects: [attack.effects, ...warnings].filter(Boolean).join(" · ") };
 }
 
-export function rollAbility(record, ability) {
+export function rollAbility(record, ability, part = "both") {
   const stats = computeEffectiveStats(record);
-  const modifier = ability.rollType === "attack" ? stats.attackBonus : ability.rollType === "damage" ? stats.damageBonus : 0;
-  const roll = ability.roll ? rollDiceExpression(applyDiceCondition(applyFlatBonus(ability.roll, modifier), stats.diceCount.abilities)) : null;
+  const legacyRoll = ability.roll || "";
+  const testExpression = ability.test || (ability.rollType === "damage" ? "" : legacyRoll);
+  const damageExpression = ability.damageDice || ability.damage || (ability.rollType === "damage" ? legacyRoll : "");
+  const test = part === "damage" || !testExpression ? null : rollDiceExpression(
+    applyDiceCondition(applyFlatBonus(testExpression, ability.rollType === "attack" ? stats.attackBonus : 0), stats.diceCount.abilities)
+  );
+  const damage = part === "test" || !damageExpression ? null : rollDiceExpression(
+    applyDiceCondition(applyFlatBonus(damageExpression, stats.damageBonus), stats.diceCount.damage)
+  );
   const isRitual = ability.ritual === true || /ritual/i.test(`${ability.type ?? ""} ${ability.actionType ?? ""}`);
   const ritualWarning = isRitual && stats.rules.includes("ritualsPoorCondition") ? "Condição ruim para lançar rituais." : "";
-  return { kind: "ability", title: ability.name, roll, description: [ability.description, ritualWarning].filter(Boolean).join(" · ") };
+  const metadata = [
+    ability.dt !== null && ability.dt !== undefined ? `DT ${ability.dt}` : "",
+    ability.savingThrow ? `Teste de resistência: ${ability.savingThrow}` : ""
+  ].filter(Boolean).join(" · ");
+  return {
+    kind: "ability", title: ability.name, part, test, damage,
+    critical: ability.criticalMargin ? `${ability.criticalMargin}/${ability.criticalMultiplier || "x2"}` : "",
+    range: ability.range ?? "",
+    effects: ability.effects ?? "",
+    description: [ability.description, metadata, ritualWarning].filter(Boolean).join(" · ")
+  };
 }
 
 export function rollSkillTest(record, skillTest) {

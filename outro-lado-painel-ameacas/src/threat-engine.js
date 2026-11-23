@@ -9,7 +9,8 @@ export class ThreatValidationError extends Error {
 }
 
 export function createThreatTemplate() {
-  return {    schemaVersion: SCHEMA_VERSION,
+  return {
+    schemaVersion: SCHEMA_VERSION,
     creature: {
       name: "NOME DA AMEAÇA",
       vd: 0,
@@ -20,34 +21,78 @@ export function createThreatTemplate() {
       description: "",
       appearance: "",
       lore: "",
-      presence: { dt: null, mentalDamage: "", nex: "" },
-      senses: { perception: "", initiative: "", special: "" },
+      presence: {
+        dt: null,
+        mentalDamage: "",
+        nex: ""
+      },
+      senses: {
+        perception: "",
+        initiative: "",
+        special: ""
+      },
       defense: 0,
-      saves: { fortitude: "", reflexes: "", will: "" },
-      hp: { max: 1, current: 1, woundedAt: null },
+      saves: {
+        fortitude: "",
+        reflexes: "",
+        will: ""
+      },
+      hp: {
+        max: 1,
+        current: 1,
+        woundedAt: null
+      },
       resistances: [],
       vulnerabilities: [],
       immunities: [],
-      attributes: { agi: 0, for: 0, int: 0, pre: 0, vig: 0 },
+      attributes: {
+        agi: 0,
+        for: 0,
+        int: 0,
+        pre: 0,
+        vig: 0
+      },
       skills: [],
-      skillTests: [
-        { name: "Atletismo", attribute: "for", test: "1d20+0", damage: "" }
-      ],
-      movement: { meters: 0, squares: null },
+      movement: {
+        meters: 0,
+        squares: null
+      },
       attacks: [
         {
           name: "ATAQUE",
           test: "1d20+0",
           damage: "1d6",
-          critical: "20/x2",
+          critical: "19/x2",
           range: "Corpo a corpo",
           effects: "",
           description: ""
         }
       ],
-      abilities: [],
+      abilities: [
+        {
+          name: "",
+          description: "",
+          damageDice: "",
+          dt: null,
+          savingThrow: ""
+        }
+      ],
       powers: [],
-      actions: [],
+      actions: {
+        agredir: [
+          {
+            name: "",
+            test: "1d20+0",
+            damage: "",
+            criticalMargin: 19,
+            criticalMultiplier: "x2",
+            range: "Corpo a corpo",
+            effects: "",
+            description: ""
+          }
+        ],
+        other: []
+      },
       specialActions: [],
       reactions: [],
       features: [],
@@ -59,8 +104,7 @@ export function createThreatTemplate() {
       hpCurrent: 1,
       conditions: [],
       resources: {},
-      history: [],
-      rollHistory: []
+      history: []
     }
   };
 }
@@ -159,42 +203,81 @@ export function validateThreatPayload(payload) {
     if (creature.movement.meters !== undefined && (!isNumber(creature.movement.meters) || creature.movement.meters < 0)) addError(errors, "creature.movement.meters", "Informe uma distância numérica não negativa.");
     if (creature.movement.squares !== undefined && creature.movement.squares !== null && typeof creature.movement.squares !== "string" && !isNumber(creature.movement.squares)) addError(errors, "creature.movement.squares", "Informe texto, número ou null.");
   }
-  for (const field of ["resistances", "vulnerabilities", "immunities", "skills", "attacks", "abilities", "powers", "actions", "specialActions", "reactions", "features", "resources", "elementsSecondary", "skillTests"]) {
+  const arrayFields = ["resistances", "vulnerabilities", "immunities", "skills", "attacks", "abilities", "powers", "specialActions", "reactions", "features", "resources", "elementsSecondary", "skillTests"];
+  for (const field of arrayFields) {
     if (creature[field] !== undefined && !Array.isArray(creature[field])) addError(errors, `creature.${field}`, "Era esperado uma lista (array).");
   }
+
+  const validateRollField = (entry, field, path) => {
+    const value = entry?.[field];
+    if (value === undefined || value === null || value === "") return;
+    if (typeof value !== "string") {
+      addError(errors, `${path}.${field}`, "Informe a expressão de dados em texto, como 2d8+5.");
+      return;
+    }
+    const validation = validateDiceExpression(value);
+    if (!validation.valid) addError(errors, `${path}.${field}`, validation.error);
+  };
+  const validateAttackEntries = (entries, path) => {
+    for (const [index, attack] of ensureArray(entries).entries()) {
+      const itemPath = `${path}[${index}]`;
+      if (!isObject(attack)) { addError(errors, itemPath, "Era esperado um objeto de ataque."); continue; }
+      validateRollField(attack, "test", itemPath);
+      validateRollField(attack, "damage", itemPath);
+      if (attack.criticalMargin !== undefined && attack.criticalMargin !== null && (!Number.isInteger(attack.criticalMargin) || attack.criticalMargin < 1 || attack.criticalMargin > 20)) {
+        addError(errors, `${itemPath}.criticalMargin`, "Informe uma margem crítica inteira entre 1 e 20.");
+      }
+      if (attack.criticalMultiplier !== undefined && (typeof attack.criticalMultiplier !== "string" || !/^x[1-9]\\d*$/i.test(attack.criticalMultiplier))) {
+        addError(errors, `${itemPath}.criticalMultiplier`, 'Informe o multiplicador como texto, por exemplo "x2".');
+      }
+    }
+  };
+  const validateAbilityEntries = (entries, path, { allowStrings = false } = {}) => {
+    for (const [index, ability] of ensureArray(entries).entries()) {
+      const itemPath = `${path}[${index}]`;
+      if (allowStrings && typeof ability === "string") continue;
+      if (!isObject(ability)) { addError(errors, itemPath, "Era esperado um objeto de habilidade, poder ou ação."); continue; }
+      for (const field of ["name", "description", "savingThrow", "range", "effects"]) {
+        if (ability[field] !== undefined && typeof ability[field] !== "string") addError(errors, `${itemPath}.${field}`, "Informe um texto.");
+      }
+      if (ability.dt !== undefined && ability.dt !== null && (!isNumber(ability.dt) || ability.dt < 0)) addError(errors, `${itemPath}.dt`, "Informe uma DT numérica não negativa ou null.");
+      validateRollField(ability, "damageDice", itemPath);
+      validateRollField(ability, "test", itemPath);
+      validateRollField(ability, "damage", itemPath);
+      validateRollField(ability, "roll", itemPath);
+      if (ability.resourceCost !== undefined && (!Number.isInteger(ability.resourceCost) || ability.resourceCost < 0)) addError(errors, `${itemPath}.resourceCost`, "Informe um inteiro não negativo.");
+    }
+  };
+
+  validateAttackEntries(creature.attacks, "creature.attacks");
+  validateAbilityEntries(creature.abilities, "creature.abilities");
+  for (const group of ["powers", "specialActions", "reactions"]) {
+    validateAbilityEntries(creature[group], `creature.${group}`, { allowStrings: true });
+  }
+  // actions aceita o formato anterior (array) durante a migração, mas o formato atual é um objeto.
+  if (creature.actions !== undefined) {
+    if (Array.isArray(creature.actions)) {
+      validateAbilityEntries(creature.actions, "creature.actions", { allowStrings: true });
+    } else if (!isObject(creature.actions)) {
+      addError(errors, "creature.actions", "Era esperado um objeto com as listas agredir e other.");
+    } else {
+      for (const group of ["agredir", "other"]) {
+        if (creature.actions[group] !== undefined && !Array.isArray(creature.actions[group])) {
+          addError(errors, `creature.actions.${group}`, "Era esperado uma lista (array).");
+        }
+      }
+      validateAttackEntries(creature.actions.agredir, "creature.actions.agredir");
+      validateAbilityEntries(creature.actions.other, "creature.actions.other", { allowStrings: true });
+    }
+  }
+  // skillTests continua sendo aceito para importar fichas feitas com o modelo anterior.
   for (const [index, skillTest] of ensureArray(creature.skillTests).entries()) {
     if (!isObject(skillTest)) { addError(errors, `creature.skillTests[${index}]`, "Era esperado um objeto de teste de perícia."); continue; }
     if (typeof skillTest.name !== "string" || !skillTest.name.trim()) addError(errors, `creature.skillTests[${index}].name`, "Informe o nome da perícia ou teste.");
     if (skillTest.attribute !== undefined && !["agi", "for", "int", "pre", "vig"].includes(skillTest.attribute)) addError(errors, `creature.skillTests[${index}].attribute`, "Use agi, for, int, pre ou vig.");
     if (skillTest.senseUse !== undefined && !["observe", "hear"].includes(skillTest.senseUse)) addError(errors, `creature.skillTests[${index}].senseUse`, 'Use "observe" ou "hear" para testes de Percepção sensoriais.');
-    for (const field of ["test", "damage"]) if (skillTest[field]) {
-      const validation = validateDiceExpression(skillTest[field]);
-      if (!validation.valid) addError(errors, `creature.skillTests[${index}].${field}`, validation.error);
-    }
-  }
-  for (const [index, attack] of ensureArray(creature.attacks).entries()) {
-    if (!isObject(attack)) { addError(errors, `creature.attacks[${index}]`, "Era esperado um objeto de ataque."); continue; }
-    for (const field of ["test", "damage"]) {
-      if (attack[field] !== undefined && attack[field] !== "") {
-        const validation = validateDiceExpression(attack[field]);
-        if (!validation.valid) addError(errors, `creature.attacks[${index}].${field}`, validation.error);
-      }
-    }
-  }
-  for (const group of ["abilities", "powers", "actions", "specialActions", "reactions"]) {
-    for (const [index, ability] of ensureArray(creature[group]).entries()) {
-      if (!isObject(ability)) { addError(errors, `creature.${group}[${index}]`, "Era esperado um objeto de habilidade/ação."); continue; }
-      if (ability.roll) {
-        const validation = validateDiceExpression(ability.roll);
-        if (!validation.valid) addError(errors, `creature.${group}[${index}].roll`, validation.error);
-      }
-      if (ability.resourceCost !== undefined && (!Number.isInteger(ability.resourceCost) || ability.resourceCost < 0)) addError(errors, `creature.${group}[${index}].resourceCost`, "Informe um inteiro não negativo.");
-    }
-  }
-  for (const [index, resource] of ensureArray(creature.resources).entries()) {
-    if (!isObject(resource)) { addError(errors, `creature.resources[${index}]`, "Era esperado um objeto de recurso."); continue; }
-    if (resource.max !== undefined && (!Number.isInteger(resource.max) || resource.max < 0)) addError(errors, `creature.resources[${index}].max`, "Informe um inteiro não negativo.");
-    if (resource.current !== undefined && (!Number.isInteger(resource.current) || resource.current < 0 || (Number.isInteger(resource.max) && resource.current > resource.max))) addError(errors, `creature.resources[${index}].current`, "Informe um inteiro entre zero e o máximo do recurso.");
+    validateRollField(skillTest, "test", `creature.skillTests[${index}]`);
+    validateRollField(skillTest, "damage", `creature.skillTests[${index}]`);
   }
   if (payload.schemaVersion !== undefined && (!Number.isInteger(payload.schemaVersion) || payload.schemaVersion > SCHEMA_VERSION || payload.schemaVersion < 1)) {
     addError(errors, "schemaVersion", `Versão não suportada. Esta extensão aceita a versão ${SCHEMA_VERSION}.`);
@@ -219,6 +302,18 @@ export function normalizeThreatPayload(payload, { id = crypto.randomUUID(), now 
   const errors = validateThreatPayload(payload);
   if (errors.length) throw new ThreatValidationError(errors);
   const raw = payload.creature ?? payload.threat ?? payload;
+  const rawActions = raw.actions;
+  const normalizeEntries = (value) => ensureArray(value).map((item) => {
+    const entry = typeof item === "string" ? { name: item } : (isObject(item) ? clone(item) : {});
+    return { ...entry, id: entry.id || crypto.randomUUID() };
+  });
+  const normalizedActions = Array.isArray(rawActions)
+    ? { agredir: [], other: normalizeEntries(rawActions) }
+    : {
+        ...(isObject(rawActions) ? clone(rawActions) : {}),
+        agredir: normalizeEntries(rawActions?.agredir),
+        other: normalizeEntries(rawActions?.other)
+      };
   const creature = {
     ...clone(raw),
     name: raw.name.trim(),
@@ -237,16 +332,16 @@ export function normalizeThreatPayload(payload, { id = crypto.randomUUID(), now 
     immunities: ensureArray(raw.immunities),
     attributes: { agi: 0, for: 0, int: 0, pre: 0, vig: 0, ...(isObject(raw.attributes) ? raw.attributes : {}) },
     skills: ensureArray(raw.skills),
-    skillTests: ensureArray(raw.skillTests).map((item) => ({ ...item, id: item.id || crypto.randomUUID() })),
+    ...(Array.isArray(raw.skillTests) ? { skillTests: normalizeEntries(raw.skillTests) } : {}),
     movement: { meters: 0, squares: null, ...(isObject(raw.movement) ? raw.movement : {}) },
-    attacks: ensureArray(raw.attacks).map((item) => ({ ...item, id: item.id || crypto.randomUUID() })),
-    abilities: ensureArray(raw.abilities).map((item) => ({ ...item, id: item.id || crypto.randomUUID() })),
-    powers: ensureArray(raw.powers).map((item) => ({ ...item, id: item.id || crypto.randomUUID() })),
-    actions: ensureArray(raw.actions).map((item) => ({ ...item, id: item.id || crypto.randomUUID() })),
-    specialActions: ensureArray(raw.specialActions).map((item) => ({ ...item, id: item.id || crypto.randomUUID() })),
-    reactions: ensureArray(raw.reactions).map((item) => ({ ...item, id: item.id || crypto.randomUUID() })),
+    attacks: normalizeEntries(raw.attacks),
+    abilities: normalizeEntries(raw.abilities),
+    powers: normalizeEntries(raw.powers),
+    actions: normalizedActions,
+    specialActions: normalizeEntries(raw.specialActions),
+    reactions: normalizeEntries(raw.reactions),
     features: ensureArray(raw.features),
-    resources: ensureArray(raw.resources).map((item) => ({ ...item, id: item.id || crypto.randomUUID() })),
+    resources: normalizeEntries(raw.resources),
     notes: stringOr(raw.notes),
     custom: isObject(raw.custom) ? raw.custom : {}
   };
@@ -264,11 +359,14 @@ export function normalizeThreatPayload(payload, { id = crypto.randomUUID(), now 
 }
 
 export function exportThreatRecord(record) {
+  const state = clone(record.runtime);
+  // rollHistory é um campo complementar da extensão e só é exportado quando há registros.
+  if (!state.rollHistory?.length) delete state.rollHistory;
   return {
     schemaVersion: SCHEMA_VERSION,
     exportedAt: new Date().toISOString(),
     creature: clone(record.creature),
-    state: clone(record.runtime)
+    state
   };
 }
 
@@ -428,7 +526,7 @@ export function pushHistory(record, message) {
 
 export function pushRollHistory(record, title, result) {
   const at = new Date().toISOString();
-  const total = result?.kind === "attack" ? (result.test?.total ?? result.damage?.total) : result?.roll?.total ?? result?.total;
+  const total = ["attack", "ability"].includes(result?.kind) ? (result.test?.total ?? result.damage?.total) : result?.roll?.total ?? result?.total;
   record.runtime.rollHistory = [...(record.runtime.rollHistory ?? []), {
     at, title: String(title || "Rolagem"), kind: result?.kind || "test",
     total: total ?? "—", expression: result?.expression || result?.test?.expression || result?.roll?.expression || "",

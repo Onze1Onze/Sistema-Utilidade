@@ -11,7 +11,7 @@ test("manifesto é JSON válido e aponta para arquivos da extensão", async () =
   const manifest = JSON.parse(await readFile(resolve(ROOT, "manifest.json"), "utf8"));
   assert.equal(manifest.manifest_version, 1);
   assert.equal(manifest.name, "Outro Lado — Painel de Ameaças");
-  assert.equal(manifest.version, "1.2.1");
+  assert.equal(manifest.version, "1.3.0");
   assert.match(manifest.icon, /^https:\/\/raw\.githack\.com\//);
   assert.match(manifest.action.icon, /^https:\/\/raw\.githack\.com\//);
   assert.match(manifest.action.popover, /^https:\/\/raw\.githack\.com\//);
