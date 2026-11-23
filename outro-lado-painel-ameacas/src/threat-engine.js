@@ -44,6 +44,10 @@ export function createThreatTemplate() {
         }
       ],
       abilities: [],
+      powers: [],
+      actions: [],
+      specialActions: [],
+      reactions: [],
       features: [],
       resources: [],
       notes: "",
@@ -152,7 +156,7 @@ export function validateThreatPayload(payload) {
     if (creature.movement.meters !== undefined && (!isNumber(creature.movement.meters) || creature.movement.meters < 0)) addError(errors, "creature.movement.meters", "Informe uma distância numérica não negativa.");
     if (creature.movement.squares !== undefined && creature.movement.squares !== null && typeof creature.movement.squares !== "string" && !isNumber(creature.movement.squares)) addError(errors, "creature.movement.squares", "Informe texto, número ou null.");
   }
-  for (const field of ["resistances", "vulnerabilities", "immunities", "skills", "attacks", "abilities", "features", "resources", "elementsSecondary"]) {
+  for (const field of ["resistances", "vulnerabilities", "immunities", "skills", "attacks", "abilities", "powers", "actions", "specialActions", "reactions", "features", "resources", "elementsSecondary"]) {
     if (creature[field] !== undefined && !Array.isArray(creature[field])) addError(errors, `creature.${field}`, "Era esperado uma lista (array).");
   }
   for (const [index, attack] of ensureArray(creature.attacks).entries()) {
@@ -164,13 +168,15 @@ export function validateThreatPayload(payload) {
       }
     }
   }
-  for (const [index, ability] of ensureArray(creature.abilities).entries()) {
-    if (!isObject(ability)) { addError(errors, `creature.abilities[${index}]`, "Era esperado um objeto de habilidade."); continue; }
-    if (ability.roll) {
-      const validation = validateDiceExpression(ability.roll);
-      if (!validation.valid) addError(errors, `creature.abilities[${index}].roll`, validation.error);
+  for (const group of ["abilities", "powers", "actions", "specialActions", "reactions"]) {
+    for (const [index, ability] of ensureArray(creature[group]).entries()) {
+      if (!isObject(ability)) { addError(errors, `creature.${group}[${index}]`, "Era esperado um objeto de habilidade/ação."); continue; }
+      if (ability.roll) {
+        const validation = validateDiceExpression(ability.roll);
+        if (!validation.valid) addError(errors, `creature.${group}[${index}].roll`, validation.error);
+      }
+      if (ability.resourceCost !== undefined && (!Number.isInteger(ability.resourceCost) || ability.resourceCost < 0)) addError(errors, `creature.${group}[${index}].resourceCost`, "Informe um inteiro não negativo.");
     }
-    if (ability.resourceCost !== undefined && (!Number.isInteger(ability.resourceCost) || ability.resourceCost < 0)) addError(errors, `creature.abilities[${index}].resourceCost`, "Informe um inteiro não negativo.");
   }
   for (const [index, resource] of ensureArray(creature.resources).entries()) {
     if (!isObject(resource)) { addError(errors, `creature.resources[${index}]`, "Era esperado um objeto de recurso."); continue; }
@@ -220,6 +226,10 @@ export function normalizeThreatPayload(payload, { id = crypto.randomUUID(), now 
     movement: { meters: 0, squares: null, ...(isObject(raw.movement) ? raw.movement : {}) },
     attacks: ensureArray(raw.attacks).map((item) => ({ ...item, id: item.id || crypto.randomUUID() })),
     abilities: ensureArray(raw.abilities).map((item) => ({ ...item, id: item.id || crypto.randomUUID() })),
+    powers: ensureArray(raw.powers).map((item) => ({ ...item, id: item.id || crypto.randomUUID() })),
+    actions: ensureArray(raw.actions).map((item) => ({ ...item, id: item.id || crypto.randomUUID() })),
+    specialActions: ensureArray(raw.specialActions).map((item) => ({ ...item, id: item.id || crypto.randomUUID() })),
+    reactions: ensureArray(raw.reactions).map((item) => ({ ...item, id: item.id || crypto.randomUUID() })),
     features: ensureArray(raw.features),
     resources: ensureArray(raw.resources).map((item) => ({ ...item, id: item.id || crypto.randomUUID() })),
     notes: stringOr(raw.notes),

@@ -119,7 +119,12 @@ function renderSheet(record) {
   };
   const currentConditions = r.conditions.map((condition) => `<div class="condition-entry"><div><b>${escapeHtml(condition.name)}</b>${condition.duration ? `<small>${escapeHtml(condition.duration)}</small>` : ""}${condition.description ? `<small>${escapeHtml(condition.description)}</small>` : ""}<div class="modifier-summary">${escapeHtml(JSON.stringify(condition.modifiers ?? {}))}</div></div><button class="danger-btn" data-action="remove-condition" data-id="${escapeHtml(condition.id)}" title="Remover condição">×</button></div>`).join("");
   const attacks = c.attacks.length ? c.attacks.map((attack) => `<div class="attack-row"><button data-action="roll-attack" data-id="${escapeHtml(attack.id)}">${escapeHtml(attack.name || "Ataque")}</button><span>${escapeHtml(attack.test || "—")}</span><span>${escapeHtml(attack.damage || "—")}</span><span>${escapeHtml([attack.critical, attack.range].filter(Boolean).join(" · ") || "—")}</span></div>`).join("") : `<div class="condition-empty">Nenhum ataque cadastrado.</div>`;
-  const abilities = c.abilities.length ? c.abilities.map((ability) => `<article class="ability-card"><div class="card-head"><div><div class="card-name">${escapeHtml(ability.name || "Habilidade")}</div>${ability.actionType ? `<div class="card-sub">${escapeHtml(ability.actionType)}</div>` : ""}</div>${ability.roll ? `<span class="entry-vd">${escapeHtml(ability.roll)}</span>` : ""}</div><div class="card-body">${escapeHtml(ability.description || "Sem descrição.")}</div><div class="card-actions"><button class="small-btn" data-action="use-ability" data-id="${escapeHtml(ability.id)}">${ability.roll ? "Executar / rolar" : "Consultar habilidade"}</button></div></article>`).join("") : `<div class="condition-empty">Nenhuma habilidade cadastrada.</div>`;
+  const abilityGroups = [
+    ["abilities", "Habilidade"], ["powers", "Poder"], ["actions", "Ação"],
+    ["specialActions", "Ação especial"], ["reactions", "Reação"]
+  ];
+  const abilityEntries = abilityGroups.flatMap(([key, label]) => (c[key] ?? []).map((ability) => ({ ...ability, groupKey: key, groupLabel: label })));
+  const abilities = abilityEntries.length ? abilityEntries.map((ability) => `<article class="ability-card"><div class="card-head"><div><div class="card-name">${escapeHtml(ability.name || ability.groupLabel)}</div><div class="card-sub">${escapeHtml(ability.actionType || ability.groupLabel)}</div></div>${ability.roll ? `<span class="entry-vd">${escapeHtml(ability.roll)}</span>` : ""}</div><div class="card-body">${escapeHtml(ability.description || "Sem descrição.")}${ability.effects ? `<div class="card-sub">Efeitos: ${escapeHtml(typeof ability.effects === "string" ? ability.effects : JSON.stringify(ability.effects))}</div>` : ""}</div><div class="card-actions"><button class="small-btn" data-action="use-ability" data-kind="${escapeHtml(ability.groupKey)}" data-id="${escapeHtml(ability.id)}">${ability.roll ? "Executar / rolar" : "Consultar habilidade"}</button></div></article>`).join("") : `<div class="condition-empty">Nenhuma habilidade ou ação cadastrada.</div>`;
   const resources = c.resources.length ? c.resources.map((resource) => {
     const current = r.resources[resource.id] ?? resource.current ?? resource.max ?? 0;
     const max = resource.max ?? "—";
@@ -149,7 +154,7 @@ function renderSheet(record) {
           <section class="sheet-block"><h3 class="block-title">Deslocamento</h3><div class="movement-row"><strong>${escapeHtml(stats.movement.value)}m</strong><span>${c.movement.squares !== null && c.movement.squares !== undefined ? `| ${escapeHtml(c.movement.squares)} quadrados` : ""}</span>${stats.movement.value !== stats.movement.base ? `<span class="muted">(base ${escapeHtml(stats.movement.base)}m)</span>` : ""}</div></section>
         </div>
         <div class="sheet-column">
-          <section class="sheet-block"><h3 class="block-title">Habilidades e ações <span class="minor">${c.abilities.length} registro(s)</span></h3>${abilities}</section>
+          <section class="sheet-block"><h3 class="block-title">Habilidades e ações <span class="minor">${abilityEntries.length} registro(s)</span></h3>${abilities}</section>
           ${featureMarkup ? `<section class="sheet-block"><h3 class="block-title">Características</h3>${featureMarkup}</section>` : ""}
           <section class="sheet-block"><h3 class="block-title">Condições ativas <span class="minor">${r.conditions.length}</span></h3><div class="condition-list">${currentConditions || `<div class="condition-empty">Nenhuma condição aplicada.</div>`}</div><button class="small-btn" style="margin-top:7px" data-action="add-condition">＋ Aplicar condição</button></section>
           <section class="sheet-block"><h3 class="block-title">Recursos</h3><div class="resources">${resources}</div></section>
@@ -166,7 +171,8 @@ function renderSheet(record) {
 }
 
 function renderModal(modal) {
-  if (modal.type === "json") {    const title = modal.mode === "edit" ? "Editar ficha — JSON" : "Importar / criar ameaça";
+  if (modal.type === "json") {
+    const title = modal.mode === "edit" ? "Editar ficha — JSON" : "Importar / criar ameaça";
     return `<div class="modal-backdrop" data-action="backdrop-close"><section class="modal" role="dialog" aria-modal="true" aria-label="${title}"><header class="modal-head"><span class="modal-title">${title}</span><button class="modal-close" data-action="close-modal" aria-label="Fechar">×</button></header><div class="modal-content"><label class="modal-label" for="json-input">Modelo JSON da ameaça</label><textarea class="json-editor" id="json-input" spellcheck="false">${escapeHtml(modal.value)}</textarea><div class="help-text">Cole ou edite o objeto JSON. Os campos desconhecidos são preservados em creature e custom. A validação informa o caminho exato dos erros.</div>${modal.error ? `<div class="error-box">${escapeHtml(modal.error)}</div>` : ""}<div style="display:flex;gap:7px;flex-wrap:wrap;margin-top:9px"><button class="small-btn" data-action="copy-template">Copiar modelo</button><button class="small-btn" data-action="load-json-file">Abrir arquivo .json</button><input type="file" id="json-file" accept=".json,application/json" hidden></div></div><footer class="modal-foot"><button class="small-btn" data-action="close-modal">Cancelar</button><button class="primary-btn" data-action="submit-json">${modal.mode === "edit" ? "Validar e salvar" : "Validar e importar"}</button></footer></section></div>`;
   }
   if (modal.type === "condition") {
@@ -305,7 +311,8 @@ async function handleClick(event) {
     return;
   }
   if (action === "use-ability" && record) {
-    const ability = record.creature.abilities.find((entry) => entry.id === control.dataset.id);
+    const group = control.dataset.kind || "abilities";
+    const ability = (record.creature[group] ?? []).find((entry) => entry.id === control.dataset.id);
     if (!ability) return;
     const resourceId = ability.resourceId;
     const cost = Math.max(0, Math.floor(safeNumber(ability.resourceCost, 0)));

@@ -61,3 +61,20 @@ test("exportação conserva dados da criatura e estado atual", () => {
   assert.equal(imported.creature.name, record.creature.name);
   assert.equal(imported.runtime.hpCurrent, record.runtime.hpCurrent);
 });
+
+
+test("categorias de habilidades, poderes, ações e reações são preservadas no ciclo JSON", () => {
+  const payload = createThreatTemplate();
+  payload.creature.abilities = [{ name: "Marca", roll: "1d20+4" }];
+  payload.creature.powers = [{ name: "Vínculo" }];
+  payload.creature.actions = [{ name: "Investida" }];
+  payload.creature.specialActions = [{ name: "Ruptura" }];
+  payload.creature.reactions = [{ name: "Contra-ataque" }];
+  const record = normalizeThreatPayload(payload);
+  const exported = exportThreatRecord(record);
+  assert.equal(exported.creature.abilities[0].name, "Marca");
+  assert.equal(exported.creature.powers[0].name, "Vínculo");
+  assert.equal(exported.creature.actions[0].name, "Investida");
+  assert.equal(exported.creature.specialActions[0].name, "Ruptura");
+  assert.equal(exported.creature.reactions[0].name, "Contra-ataque");
+});
