@@ -1,6 +1,6 @@
 # Outro Lado — Painel de Ameaças
 
-Extensão para Owlbear Rodeo voltada ao gerenciamento privado de fichas de Ameaças de Ordem Paranormal pelo Mestre.
+Versão 1.2.0. Extensão para Owlbear Rodeo voltada ao gerenciamento privado de fichas de Ameaças de Ordem Paranormal pelo Mestre.
 
 ## Instalação
 
@@ -20,7 +20,9 @@ No Owlbear Rodeo, abra **Extras → Extensions → Add**, cole a URL do manifest
 
 ## Fluxo JSON
 
-O botão `+` abre o modelo completo. Preencha o JSON externamente ou diretamente no editor e use **Validar e importar**. A edição funciona pelo mesmo editor: exporte, altere e salve. O formato mantém `creature` (dados-base) separado de `state` (vida atual, condições, recursos e histórico).
+O botão `+` abre o modelo completo. Preencha o JSON externamente ou diretamente no editor e use **Validar e importar**. A edição funciona pelo mesmo editor: exporte, altere e salve. O formato mantém `creature` (dados-base) separado de `state` (vida atual, condições, recursos, histórico e histórico de rolagens).
+
+A nova lista `creature.skillTests` permite registrar testes de perícia com `name`, `attribute`, `test` e `damage`. Para testes de Percepção, o campo opcional `senseUse` aceita `"observe"` ou `"hear"`, permitindo que Cego impeça observação sem impedir audição e que Surdo impeça somente testes para ouvir. Os botões de teste e dano são separados na ficha. Cada ataque também oferece ações independentes para rolar o teste e o dano. Para ações puramente mentais sob Paralisado, marque `mental: true` no registro de habilidade/ação. Para ataques com armas leves sob Agarrado, identifique a arma com `weaponType: "light"` ou `isLightWeapon: true`.
 
 O schema é versionado (`schemaVersion: 1`) e mantém propriedades desconhecidas dentro do objeto da criatura, permitindo estender a ficha sem perder campos futuros.
 
@@ -32,6 +34,12 @@ O schema é versionado (`schemaVersion: 1`) e mantém propriedades desconhecidas
 - Vida atual/máxima, aplicação de dano e cura com limites.
 - Condições criadas pelo Mestre com modificadores numéricos para Defesa, salvaguardas, sentidos, deslocamento, ataques, dano, atributos e quantidade de dados.
 - Exibição de valor-base e valor modificado; remover uma condição recalcula os valores derivados.
+- Campo JSON `skillTests` com atributo associado, expressão de teste e expressão de dano separadas; a ficha apresenta botões independentes para testar perícias e rolar dano.
+- Rolagens de ataques divididas em ações independentes de teste e dano.
+- Rolagem apresentada em painel compacto não modal, sem escurecer a ficha; histórico de resultados individual por ameaça, com dados e totais persistidos no JSON.
+- Temas visuais e SVGs próprios para Sangue (vermelho), Morte (preto), Conhecimento (dourado), Energia (rosa/ciano) e Medo (branco).
+- Catálogo aplicável de 17 condições: Agarrado, Caído, Cego, Debilitado, Desprevenido, Enredado, Exausto, Fatigado, Fraco, Inconsciente, Indefeso, Ofuscado, Paralisado, Petrificado, Surdo, Surpreendido e Vulnerável. Modificadores de Defesa situacional, atributos, salvaguardas, testes, deslocamento, restrições e resistência são calculados sem alterar os valores-base.
+- Reaplicações de Fraco, Debilitado, Fatigado e Exausto avançam para o agravamento descrito; estágios mais graves substituem os menos graves e impedem rebaixamento automático.
 - Recursos mutáveis, ataques e habilidades interativos.
 - Parser e rolador para expressões como `1d20`, `2d20+10`, `4d6`, `2d8+7` e expressões compostas com soma/subtração.
 - Feedback animado de rolagem e histórico local de alterações relevantes.
@@ -47,9 +55,12 @@ O carregador do SDK tenta provedores independentes em ordem e apresenta a URL/or
 - `index.html` / `styles.css` — interface e layout.
 - `src/main.js` — integração com o SDK e eventos da interface.
 - `src/threat-engine.js` — modelo, validação, condições, modificadores e rolagens.
-- `src/dice.js` — execução de ataques e habilidades.
+- `src/dice.js` — execução de ataques, testes de perícia, salvaguardas e dano.
+- `src/conditions.js` — catálogo de condições, modificadores automáticos e agravamentos por reaplicação.
+- `assets/elements/` — emblemas vetoriais por elemento paranormal.
 - `src/storage.js` — persistência privada local.
-- `tests/threat-engine.test.js` — testes automatizados da lógica.
+- `tests/threat-engine.test.js` / `tests/conditions.test.js` — testes automatizados da lógica e condições.
+- `tests/assets.test.js` / `tests/manifest.test.js` — conferência de assets, imports e manifesto.
 
 ## Desenvolvimento e testes
 
@@ -57,4 +68,4 @@ O SDK oficial do Owlbear (3.1.0) é carregado com fallback entre esm.sh, jsDeliv
 
     cd outro-lado-painel-ameacas && npm test && npm run check
 
-A extensão é estática e não requer etapa de build. As rolagens e modificadores são genéricos e configuráveis; a extensão não define regras oficiais de condições nem preenche estatísticas de criaturas que não foram fornecidas pelo Mestre.
+A extensão é estática e não requer etapa de build. As condições predefinidas implementam os efeitos explicitados na lista configurada no projeto. Restrições que dependem de contexto externo à ficha — como escolher o alvo errado em um ataque à distância contra alguém envolvido em agarrar, perceber inimigos no mapa ou resolver camuflagem total — aparecem como avisos operacionais para o Mestre; não são decididas automaticamente sem integração com o sistema de alvos do Owlbear. Lentidão é representada como metade do deslocamento, e imóvel como deslocamento zero.

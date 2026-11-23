@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import {
   createThreatTemplate, parseDiceExpression, rollDiceExpression, validateThreatPayload,
   normalizeThreatPayload, computeEffectiveStats, addCondition, removeCondition,
-  changeHitPoints, changeResource, exportThreatRecord, adjustDiceCount
+  changeHitPoints, changeResource, exportThreatRecord, adjustDiceCount, pushRollHistory
 } from "../src/threat-engine.js";
 
 const makeRecord = () => normalizeThreatPayload(createThreatTemplate(), { id: "test-threat" });
@@ -27,6 +27,13 @@ test("validação aponta caminho e expressão incorreta", () => {
   data.creature.attacks[0].test = "2d20+";
   const errors = validateThreatPayload(data);
   assert.ok(errors.some((entry) => entry.path === "creature.attacks[0].test"));
+});
+
+test("validação aceita apenas senseUse observe ou hear em testes de perícia", () => {
+  const data = createThreatTemplate();
+  data.creature.skillTests[0].senseUse = "smell";
+  const errors = validateThreatPayload(data);
+  assert.ok(errors.some((entry) => entry.path === "creature.skillTests[0].senseUse"));
 });
 
 test("condições alteram valores derivados e removê-las restaura a base", () => {
@@ -77,4 +84,17 @@ test("categorias de habilidades, poderes, ações e reações são preservadas n
   assert.equal(exported.creature.actions[0].name, "Investida");
   assert.equal(exported.creature.specialActions[0].name, "Ruptura");
   assert.equal(exported.creature.reactions[0].name, "Contra-ataque");
+});
+
+
+test("skillTests e histórico de rolagens sobrevivem à exportação e reimportação", () => {
+  const record = makeRecord();
+  record.creature.skillTests = [{ id: "athletics", name: "Atletismo", attribute: "for", test: "2d20+9", damage: "2d6+3" }];
+  pushRollHistory(record, "Atletismo", { kind: "skill", roll: rollDiceExpression("2d20+9", () => 0.4) });
+  const exported = exportThreatRecord(record);
+  const imported = normalizeThreatPayload(exported, { id: "roundtrip-roll" });
+  assert.equal(imported.creature.skillTests[0].test, "2d20+9");
+  assert.equal(imported.creature.skillTests[0].damage, "2d6+3");
+  assert.equal(imported.runtime.rollHistory[0].title, "Atletismo");
+  assert.equal(imported.runtime.rollHistory[0].total, record.runtime.rollHistory[0].total);
 });

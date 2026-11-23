@@ -7,7 +7,6 @@ const validSdk = {
   player: { getRole() {} },
   action: { close() {} }
 };
-
 test("usa provedor alternativo quando o primeiro falha com 503", async () => {
   const visited = [];
   const loaded = await loadOwlbearSDK({

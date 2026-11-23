@@ -11,10 +11,11 @@ test("manifesto é JSON válido e aponta para arquivos da extensão", async () =
   const manifest = JSON.parse(await readFile(resolve(ROOT, "manifest.json"), "utf8"));
   assert.equal(manifest.manifest_version, 1);
   assert.equal(manifest.name, "Outro Lado — Painel de Ameaças");
+  assert.equal(manifest.version, "1.2.0");
   assert.match(manifest.icon, /^https:\/\/raw\.githack\.com\//);
   assert.match(manifest.action.icon, /^https:\/\/raw\.githack\.com\//);
   assert.match(manifest.action.popover, /^https:\/\/raw\.githack\.com\//);
-  for (const localPath of ["index.html", "styles.css", "icon.svg", "src/main.js"]) {
+  for (const localPath of ["index.html", "styles.css", "icon.svg", "src/main.js", "src/conditions.js", "assets/elements/sangue.svg", "assets/elements/morte.svg", "assets/elements/conhecimento.svg", "assets/elements/energia.svg", "assets/elements/medo.svg"]) {
     await access(resolve(ROOT, localPath));
   }
 });

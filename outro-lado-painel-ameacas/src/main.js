@@ -1,9 +1,10 @@
 import { loadOwlbearSDK } from "./sdk-loader.js";
 import {
   createThreatTemplate, normalizeThreatPayload, exportThreatRecord, computeEffectiveStats,
-  addCondition, removeCondition, changeHitPoints, changeResource, pushHistory, ThreatValidationError
+  addCondition, removeCondition, changeHitPoints, changeResource, pushHistory, pushRollHistory, ThreatValidationError
 } from "./threat-engine.js";
-import { rollAttack, rollAbility, rollStandalone } from "./dice.js";
+import { CONDITION_PRESETS, applyPresetCondition, getSkillTestRestriction, canPerformAction, canUseAttackWhileGrappled } from "./conditions.js";
+import { rollAttack, rollAbility, rollStandalone, rollSkillTest, rollDamageExpression, rollStat } from "./dice.js";
 import { ThreatStore } from "./storage.js";
 
 const ROOT = document.querySelector("#app");
@@ -26,6 +27,22 @@ function showToast(message, isError = false) {
   window.setTimeout(() => { state.toast = null; render(); }, 2600);
 }
 function updateTimestamp(record) { record.updatedAt = new Date().toISOString(); return record; }
+function getElementTheme(value) {
+  const normalized = String(value ?? "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+  if (normalized.includes("sangue")) return { className: "theme-sangue", asset: "./assets/elements/sangue.svg", label: "Sangue" };
+  if (normalized.includes("morte")) return { className: "theme-morte", asset: "./assets/elements/morte.svg", label: "Morte" };
+  if (normalized.includes("conhecimento")) return { className: "theme-conhecimento", asset: "./assets/elements/conhecimento.svg", label: "Conhecimento" };
+  if (normalized.includes("energia")) return { className: "theme-energia", asset: "./assets/elements/energia.svg", label: "Energia" };
+  if (normalized.includes("medo")) return { className: "theme-medo", asset: "./assets/elements/medo.svg", label: "Medo" };
+  return { className: "theme-neutro", asset: "./assets/elements/neutro.svg", label: "Neutro" };
+}
+function actionBlocked(record, ability = null, options = {}) {
+  return !canPerformAction(record, ability, options);
+}
+function attackBlocked(record, attack) {
+  const rules = computeEffectiveStats(record).rules;
+  return actionBlocked(record, attack) || (rules.includes("onlyLightWeapons") && !canUseAttackWhileGrappled(attack));
+}
 async function saveRecord(record) {
   updateTimestamp(record);
   await store.put(record);
@@ -101,6 +118,7 @@ function renderSheet(record) {
   const c = record.creature;
   const r = record.runtime;
   const stats = computeEffectiveStats(record);
+  const theme = getElementTheme(c.elementPrimary);
   const hpPercent = c.hp.max ? Math.max(0, Math.min(100, r.hpCurrent / c.hp.max * 100)) : 0;
   const attrNames = [["agi", "AGI"], ["for", "FOR"], ["int", "INT"], ["pre", "PRE"], ["vig", "VIG"]];
   const statMarkup = (stat) => {
@@ -117,14 +135,14 @@ function renderSheet(record) {
     const list = toListText(values);
     return `<div class="sheet-block"><h3 class="block-title">${title}</h3>${list ? `<div class="resistance-line">${escapeHtml(list)}</div>` : `<div class="condition-empty">—</div>`}</div>`;
   };
-  const currentConditions = r.conditions.map((condition) => `<div class="condition-entry"><div><b>${escapeHtml(condition.name)}</b>${condition.duration ? `<small>${escapeHtml(condition.duration)}</small>` : ""}${condition.description ? `<small>${escapeHtml(condition.description)}</small>` : ""}<div class="modifier-summary">${escapeHtml(JSON.stringify(condition.modifiers ?? {}))}</div></div><button class="danger-btn" data-action="remove-condition" data-id="${escapeHtml(condition.id)}" title="Remover condição">×</button></div>`).join("");
-  const attacks = c.attacks.length ? c.attacks.map((attack) => `<div class="attack-row"><button data-action="roll-attack" data-id="${escapeHtml(attack.id)}">${escapeHtml(attack.name || "Ataque")}</button><span>${escapeHtml(attack.test || "—")}</span><span>${escapeHtml(attack.damage || "—")}</span><span>${escapeHtml([attack.critical, attack.range].filter(Boolean).join(" · ") || "—")}</span></div>`).join("") : `<div class="condition-empty">Nenhum ataque cadastrado.</div>`;
+  const currentConditions = r.conditions.map((condition) => `<div class="condition-entry"><div><b>${escapeHtml(condition.name)}</b>${condition.duration ? `<small>${escapeHtml(condition.duration)}</small>` : ""}${condition.description ? `<small>${escapeHtml(condition.description)}</small>` : ""}${condition.rules?.length ? `<small class="condition-rule-tags">${escapeHtml(condition.rules.map((rule) => ({ immobile: "Imóvel", onlyLightWeapons: "Apenas armas leves", rangedAttackMisfire50: "Alvo agarrado: ataques à distância podem acertar outro alvo (50%)", cannotObserve: "Não observa", attacksTargetTotalConcealment: "Alvos com camuflagem total", incapacitated: "Incapacitado", cannotAct: "Não pode agir", cannotReact: "Não pode reagir", reflexesAutoFail: "Falha automática em Reflexos", cannotHear: "Não ouve", ritualsPoorCondition: "Rituais em condição ruim", mentalOnly: "Apenas ações mentais", resistanceAll10: "Resistência a dano 10" }[rule] ?? rule)).join(" · "))}</small>` : ""}<div class="modifier-summary">${escapeHtml(JSON.stringify(condition.modifiers ?? {}))}</div></div><button class="danger-btn" data-action="remove-condition" data-id="${escapeHtml(condition.id)}" title="Remover condição">×</button></div>`).join("");
+  const attacks = c.attacks.length ? c.attacks.map((attack) => `<div class="attack-row"><div class="attack-name-cell"><strong>${escapeHtml(attack.name || "Ataque")}</strong><div class="attack-actions"><button data-action="roll-attack-test" data-id="${escapeHtml(attack.id)}" ${attackBlocked(record, attack) ? "disabled" : ""}>Teste</button><button data-action="roll-attack-damage" data-id="${escapeHtml(attack.id)}" ${!attack.damage || attackBlocked(record, attack) ? "disabled" : ""}>Dano</button></div></div><span>${escapeHtml(attack.test || "—")}</span><span>${escapeHtml(attack.damage || "—")}</span><span>${escapeHtml([attack.critical, attack.range].filter(Boolean).join(" · ") || "—")}</span></div>`).join("") : `<div class="condition-empty">Nenhum ataque cadastrado.</div>`;
   const abilityGroups = [
     ["abilities", "Habilidade"], ["powers", "Poder"], ["actions", "Ação"],
     ["specialActions", "Ação especial"], ["reactions", "Reação"]
   ];
   const abilityEntries = abilityGroups.flatMap(([key, label]) => (c[key] ?? []).map((ability) => ({ ...ability, groupKey: key, groupLabel: label })));
-  const abilities = abilityEntries.length ? abilityEntries.map((ability) => `<article class="ability-card"><div class="card-head"><div><div class="card-name">${escapeHtml(ability.name || ability.groupLabel)}</div><div class="card-sub">${escapeHtml(ability.actionType || ability.groupLabel)}</div></div>${ability.roll ? `<span class="entry-vd">${escapeHtml(ability.roll)}</span>` : ""}</div><div class="card-body">${escapeHtml(ability.description || "Sem descrição.")}${ability.effects ? `<div class="card-sub">Efeitos: ${escapeHtml(typeof ability.effects === "string" ? ability.effects : JSON.stringify(ability.effects))}</div>` : ""}</div><div class="card-actions"><button class="small-btn" data-action="use-ability" data-kind="${escapeHtml(ability.groupKey)}" data-id="${escapeHtml(ability.id)}">${ability.roll ? "Executar / rolar" : "Consultar habilidade"}</button></div></article>`).join("") : `<div class="condition-empty">Nenhuma habilidade ou ação cadastrada.</div>`;
+  const abilities = abilityEntries.length ? abilityEntries.map((ability) => { const blocked = actionBlocked(record, ability, { isReaction: ability.groupKey === "reactions" }); return `<article class="ability-card"><div class="card-head"><div><div class="card-name">${escapeHtml(ability.name || ability.groupLabel)}</div><div class="card-sub">${escapeHtml(ability.actionType || ability.groupLabel)}</div></div>${ability.roll ? `<span class="entry-vd">${escapeHtml(ability.roll)}</span>` : ""}</div><div class="card-body">${escapeHtml(ability.description || "Sem descrição.")}${ability.effects ? `<div class="card-sub">Efeitos: ${escapeHtml(typeof ability.effects === "string" ? ability.effects : JSON.stringify(ability.effects))}</div>` : ""}</div><div class="card-actions"><button class="small-btn" data-action="use-ability" data-kind="${escapeHtml(ability.groupKey)}" data-id="${escapeHtml(ability.id)}" ${blocked ? "disabled" : ""}>${ability.roll ? "Executar / rolar" : "Consultar habilidade"}</button></div></article>`; }).join("") : `<div class="condition-empty">Nenhuma habilidade ou ação cadastrada.</div>`;
   const resources = c.resources.length ? c.resources.map((resource) => {
     const current = r.resources[resource.id] ?? resource.current ?? resource.max ?? 0;
     const max = resource.max ?? "—";
@@ -135,9 +153,10 @@ function renderSheet(record) {
     const label = [skill.name, skill.value ?? skill.test].filter(Boolean).join(" ");
     return `<span class="skill-chip">${escapeHtml(label)}</span>`;
   }).join("") : `<span class="condition-empty">—</span>`;
+  const skillTestMarkup = (c.skillTests ?? []).length ? c.skillTests.map((test) => { const blocked = actionBlocked(record, test); const restriction = getSkillTestRestriction(record, test); return `<article class="skill-test-row"><div class="skill-test-main"><b>${escapeHtml(test.name)}</b><small>${escapeHtml(({ agi: "AGI", for: "FOR", int: "INT", pre: "PRE", vig: "VIG" })[test.attribute] ?? "Teste")}${test.senseUse ? ` · ${test.senseUse === "hear" ? "OUVIR" : "OBSERVAR"}` : ""}</small></div><div class="skill-test-expressions"><span>Teste: ${escapeHtml(test.test || "—")}</span><span>Dano: ${escapeHtml(test.damage || "—")}</span></div><div class="skill-test-actions"><button class="small-btn" data-action="roll-skill-test" data-id="${escapeHtml(test.id)}" ${!test.test || blocked || restriction ? "disabled" : ""}>Rolar teste</button>${test.damage ? `<button class="small-btn" data-action="roll-skill-damage" data-id="${escapeHtml(test.id)}" ${blocked || restriction ? "disabled" : ""}>Rolar dano</button>` : ""}</div>${restriction ? `<small class="skill-test-restriction">${escapeHtml(restriction)}</small>` : ""}</article>`; }).join("") : `<div class="condition-empty">Nenhum teste de perícia configurado. Use skillTests no JSON.</div>`;
   const featureMarkup = c.features.length ? c.features.map((feature) => `<div class="ability-card"><div class="card-head"><span class="card-name">${escapeHtml(typeof feature === "string" ? feature : feature.name || "Característica")}</span></div>${typeof feature === "object" && feature.description ? `<div class="card-body">${escapeHtml(feature.description)}</div>` : ""}</div>`).join("") : "";
-  return `<article class="sheet">
-    <svg class="sheet-watermark" viewBox="0 0 700 800" aria-hidden="true"><circle cx="350" cy="400" r="265" fill="none" stroke="#111" stroke-width="5"/><circle cx="350" cy="400" r="220" fill="none" stroke="#111" stroke-width="2" stroke-dasharray="4 11"/><path d="M350 95L405 310 595 400 405 490 350 705 295 490 105 400 295 310Z" fill="none" stroke="#111" stroke-width="5"/><circle cx="350" cy="400" r="65" fill="none" stroke="#111" stroke-width="4"/><path d="M350 330v140M280 400h140M250 245l200 310M450 245L250 555" stroke="#111" stroke-width="3" fill="none"/></svg>
+  return `<article class="sheet ${theme.className}" data-element="${theme.label.toLowerCase()}">
+    <img class="sheet-element-art" src="${theme.asset}" alt="" aria-hidden="true">
     <div class="sheet-content">
       <div class="sheet-head"><div class="name-plaque"><span class="overline">Nome da criatura</span><strong class="creature-name">${escapeHtml(c.name)}</strong></div><div class="vd-plaque"><span class="vd-value">${escapeHtml(c.vd)}</span><span class="vd-label">VALOR DE DESAFIO</span></div><div class="brand-plaque"><span>ORDEM</span><strong>PARANORMAL</strong><small>RPG · OUTRO LADO</small></div></div>
       <div class="element-row"><div class="label-line"><span class="black-label">Elemento principal</span><span class="line-value">${escapeHtml(c.elementPrimary || "—")}</span></div><div class="label-line"><span class="black-label">Elementos secundários</span><span class="line-value">${escapeHtml(toListText(c.elementsSecondary) || "—")}</span></div></div>
@@ -145,13 +164,14 @@ function renderSheet(record) {
       <div class="sheet-rule"></div>
       <div class="sheet-grid">
         <div class="sheet-column">
-          <section class="sheet-block"><h3 class="block-title">Sentidos</h3><div class="senses-grid"><div class="sense-cell"><b>Percepção</b>${statMarkup(stats.senses.perception)}</div><div class="sense-cell"><b>Iniciativa</b>${statMarkup(stats.senses.initiative)}</div><div class="sense-cell"><b>Especiais</b><span>${escapeHtml(c.senses.special || "—")}</span></div></div><div style="display:flex;gap:5px;margin-top:5px;flex-wrap:wrap">${/[d]\d+/i.test(String(stats.senses.perception.value)) ? `<button class="small-btn" data-action="roll-stat" data-expression="${escapeHtml(stats.senses.perception.value)}" data-title="Percepção">Rolar percepção</button>` : ""}${/[d]\d+/i.test(String(stats.senses.initiative.value)) ? `<button class="small-btn" data-action="roll-stat" data-expression="${escapeHtml(stats.senses.initiative.value)}" data-title="Iniciativa">Rolar iniciativa</button>` : ""}</div></section>
-          <section class="sheet-block"><h3 class="block-title">Defesa e resistências</h3><div class="defense-panel"><div class="defense-number"><strong>${escapeHtml(stats.defense.value)}</strong><span>DEFESA</span>${stats.defense.value !== stats.defense.base ? `<small style="font:9px var(--sans);margin-top:4px">Base ${escapeHtml(stats.defense.base)}</small>` : ""}</div><div class="save-grid">${statRoll("Fortitude", stats.saves.fortitude, "fortitude")}${statRoll("Reflexos", stats.saves.reflexes, "reflexes")}${statRoll("Vontade", stats.saves.will, "will")}</div></div></section>
+          <section class="sheet-block"><h3 class="block-title">Sentidos</h3><div class="senses-grid"><div class="sense-cell"><b>Percepção</b>${statMarkup(stats.senses.perception)}</div><div class="sense-cell"><b>Iniciativa</b>${statMarkup(stats.senses.initiative)}</div><div class="sense-cell"><b>Especiais</b><span>${escapeHtml(c.senses.special || "—")}</span></div></div><div style="display:flex;gap:5px;margin-top:5px;flex-wrap:wrap">${/[d]\d+/i.test(String(stats.senses.perception.value)) ? `<button class="small-btn" data-action="roll-stat" data-expression="${escapeHtml(stats.senses.perception.value)}" data-title="Percepção" data-stat="perception">Rolar percepção</button>` : ""}${/[d]\d+/i.test(String(stats.senses.initiative.value)) ? `<button class="small-btn" data-action="roll-stat" data-expression="${escapeHtml(stats.senses.initiative.value)}" data-title="Iniciativa" data-stat="initiative">Rolar iniciativa</button>` : ""}</div></section>
+          <section class="sheet-block"><h3 class="block-title">Defesa e resistências</h3><div class="defense-panel"><div class="defense-number"><strong>${escapeHtml(stats.defense.value)}</strong><span>DEFESA</span>${stats.defense.value !== stats.defense.base ? `<small style="font:9px var(--sans);margin-top:4px">Base ${escapeHtml(stats.defense.base)}</small>` : ""}</div><div class="save-grid">${statRoll("Fortitude", stats.saves.fortitude, "fortitude")}${statRoll("Reflexos", stats.saves.reflexes, "reflexes")}${statRoll("Vontade", stats.saves.will, "will")}<div class="defense-situational"><span>Corpo a corpo <b>${escapeHtml(stats.defenseMelee.value)}</b></span><span>À distância <b>${escapeHtml(stats.defenseRanged.value)}</b></span></div></div></div>${stats.rules.includes("resistanceAll10") ? `<div class="condition-rule-banner">RESISTÊNCIA A DANO 10</div>` : ""}</section>
           <section class="sheet-block"><h3 class="block-title">Pontos de vida <span class="minor">${c.hp.woundedAt !== null && c.hp.woundedAt !== undefined ? `Machucado ${escapeHtml(c.hp.woundedAt)}` : ""}</span></h3><div class="hp-panel"><div class="hp-side"><strong>PV</strong><span>VIDA</span></div><div class="hp-main"><div class="hp-numbers"><strong class="hp-current">${r.hpCurrent}</strong><span class="hp-max">/ ${c.hp.max} PV</span></div><div class="hp-track"><span style="width:${hpPercent}%"></span></div><div class="hp-controls"><input type="number" min="1" max="999999" value="10" id="hp-amount" aria-label="Quantidade de pontos de vida"><button class="small-btn" data-action="damage">− Dano</button><button class="small-btn" data-action="heal">＋ Cura</button></div></div></div></section>
           ${renderTriad("Resistências", c.resistances)}${renderTriad("Vulnerabilidades", c.vulnerabilities)}${renderTriad("Imunidades", c.immunities)}
           <section class="sheet-block"><h3 class="block-title">Atributos</h3><div class="attributes">${attrNames.map(([key, label]) => `<div class="attribute"><label>${label}</label><div class="hex"><strong>${escapeHtml(stats.attributes[key].value)}</strong>${stats.attributes[key].value !== stats.attributes[key].base ? `<small>${stats.attributes[key].base}</small>` : ""}</div></div>`).join("")}</div></section>
           <section class="sheet-block"><h3 class="block-title">Perícias</h3><div class="skill-list">${skillMarkup}</div></section>
-          <section class="sheet-block"><h3 class="block-title">Deslocamento</h3><div class="movement-row"><strong>${escapeHtml(stats.movement.value)}m</strong><span>${c.movement.squares !== null && c.movement.squares !== undefined ? `| ${escapeHtml(c.movement.squares)} quadrados` : ""}</span>${stats.movement.value !== stats.movement.base ? `<span class="muted">(base ${escapeHtml(stats.movement.base)}m)</span>` : ""}</div></section>
+          <section class="sheet-block"><h3 class="block-title">Testes de perícia e dano <span class="minor">Rolagens configuradas no JSON</span></h3><div class="skill-test-list">${skillTestMarkup}</div></section>
+          <section class="sheet-block"><h3 class="block-title">Deslocamento</h3><div class="movement-row"><strong>${escapeHtml(stats.movement.value)}m</strong><span>${stats.movement.value === stats.movement.base && c.movement.squares !== null && c.movement.squares !== undefined ? `| ${escapeHtml(c.movement.squares)} quadrados` : ""}</span>${stats.movement.value !== stats.movement.base ? `<span class="muted">(base ${escapeHtml(stats.movement.base)}m)</span>` : ""}</div></section>
         </div>
         <div class="sheet-column">
           <section class="sheet-block"><h3 class="block-title">Habilidades e ações <span class="minor">${abilityEntries.length} registro(s)</span></h3>${abilities}</section>
@@ -165,7 +185,7 @@ function renderSheet(record) {
       </div>
       <section class="sheet-block" style="margin-top:12px"><h3 class="block-title">Ataques <span class="minor">Teste · Dano · Crítico / Alcance / Efeito</span></h3><div class="attack-table"><div class="attack-table-head"><span>Ataque</span><span>Teste</span><span>Dano</span><span>Crítico / Alcance</span></div>${attacks}</div></section>
       ${c.notes ? `<section class="sheet-block" style="margin-top:9px"><h3 class="block-title">Observações</h3><div class="content-copy">${escapeHtml(c.notes)}</div></section>` : ""}
-      <div class="sheet-bottom"><div class="sheet-notes"><div class="overline">${escapeHtml(c.type)} ${c.category ? `· ${escapeHtml(c.category)}` : ""}</div><div class="private-note">Ficha privada do Mestre · Estado atual salvo localmente · Sem sincronização pública</div></div><div class="sheet-actions"><button class="small-btn" data-action="edit-threat">Editar JSON</button><button class="small-btn" data-action="export-threat">Exportar JSON</button><button class="small-btn" data-action="show-history">Histórico</button><button class="small-btn" data-action="duplicate-threat">Duplicar</button><button class="danger-btn" data-action="delete-threat">Excluir</button></div></div>
+      <div class="sheet-bottom"><div class="sheet-notes"><div class="overline">${escapeHtml(c.type)} ${c.category ? `· ${escapeHtml(c.category)}` : ""}</div><div class="private-note">Ficha privada do Mestre · Estado atual salvo localmente · Sem sincronização pública</div></div><div class="sheet-actions"><button class="small-btn" data-action="edit-threat">Editar JSON</button><button class="small-btn" data-action="export-threat">Exportar JSON</button><button class="small-btn" data-action="show-history">Histórico</button><button class="small-btn" data-action="show-roll-history">Rolagens (${r.rollHistory?.length ?? 0})</button><button class="small-btn" data-action="duplicate-threat">Duplicar</button><button class="danger-btn" data-action="delete-threat">Excluir</button></div></div>
     </div>
   </article>`;
 }
@@ -177,7 +197,9 @@ function renderModal(modal) {
   }
   if (modal.type === "condition") {
     const form = modal.form ?? {};
-    return `<div class="modal-backdrop" data-action="backdrop-close"><section class="modal" role="dialog" aria-modal="true" aria-label="Aplicar condição"><header class="modal-head"><span class="modal-title">Aplicar condição</span><button class="modal-close" data-action="close-modal">×</button></header><div class="modal-content"><div class="field-grid"><div class="field"><label class="modal-label" for="condition-name">Nome</label><input id="condition-name" placeholder="Nome da condição" value="${escapeHtml(form.name ?? "")}"></div><div class="field"><label class="modal-label" for="condition-duration">Duração / observação</label><input id="condition-duration" placeholder="Ex.: até o fim da cena" value="${escapeHtml(form.duration ?? "")}"></div></div><div class="field" style="margin-top:10px"><label class="modal-label" for="condition-description">Descrição</label><textarea id="condition-description" placeholder="Detalhes da condição">${escapeHtml(form.description ?? "")}</textarea></div><div class="field" style="margin-top:10px"><label class="modal-label" for="condition-modifiers">Modificadores JSON</label><textarea id="condition-modifiers" class="json-editor" style="height:130px;min-height:90px" spellcheck="false">${escapeHtml(form.modifiers ?? "{}")}</textarea><div class="help-text">Exemplo de estrutura: {"defense":-4,"attack":-2,"diceCount":{"attack":-1}}. Os valores são definidos pelo Mestre; o sistema não presume regras oficiais.</div></div>${modal.error ? `<div class="error-box">${escapeHtml(modal.error)}</div>` : ""}</div><footer class="modal-foot"><button class="small-btn" data-action="close-modal">Cancelar</button><button class="primary-btn" data-action="submit-condition">Aplicar condição</button></footer></section></div>`;
+    const options = CONDITION_PRESETS.map((preset) => `<option value="${escapeHtml(preset.name)}" ${form.preset === preset.name ? "selected" : ""}>${escapeHtml(preset.name)} · ${escapeHtml(preset.group)}</option>`).join("");
+    const selectedPreset = CONDITION_PRESETS.find((preset) => preset.name === form.preset) ?? CONDITION_PRESETS[0];
+    return `<div class="modal-backdrop" data-action="backdrop-close"><section class="modal condition-modal" role="dialog" aria-modal="true" aria-label="Aplicar condição"><header class="modal-head"><span class="modal-title">Aplicar condição</span><button class="modal-close" data-action="close-modal">×</button></header><div class="modal-content"><section class="preset-condition-panel"><label class="modal-label" for="condition-preset">Condição predefinida · aplicação automática</label><div class="field-grid"><div class="field"><select id="condition-preset">${options}</select></div><div class="field"><input id="condition-preset-duration" placeholder="Duração / observação (opcional)" value="${escapeHtml(form.duration ?? "")}"></div></div><div class="preset-description" id="condition-preset-description">${escapeHtml(selectedPreset.description)}</div><button class="primary-btn" style="margin-top:8px" data-action="apply-preset-condition">Aplicar condição selecionada</button><div class="help-text">Reaplicar Fraco, Debilitado, Fatigado ou Exausto aciona o agravamento previsto na regra fornecida.</div></section><details class="custom-condition-details"><summary>Adicionar condição personalizada</summary><div class="field-grid" style="margin-top:9px"><div class="field"><label class="modal-label" for="condition-name">Nome</label><input id="condition-name" placeholder="Nome da condição" value="${escapeHtml(form.name ?? "")}"></div><div class="field"><label class="modal-label" for="condition-duration">Duração / observação</label><input id="condition-duration" placeholder="Ex.: até o fim da cena" value="${escapeHtml(form.duration ?? "")}"></div></div><div class="field" style="margin-top:10px"><label class="modal-label" for="condition-description">Descrição</label><textarea id="condition-description" placeholder="Detalhes da condição">${escapeHtml(form.description ?? "")}</textarea></div><div class="field" style="margin-top:10px"><label class="modal-label" for="condition-modifiers">Modificadores JSON</label><textarea id="condition-modifiers" class="json-editor" style="height:110px;min-height:80px" spellcheck="false">${escapeHtml(form.modifiers ?? "{}")}</textarea><div class="help-text">Exemplo: {"defense":-4,"diceCount":{"attack":-1}}.</div></div><button class="small-btn" style="margin-top:8px" data-action="submit-condition">Aplicar personalizada</button></details>${modal.error ? `<div class="error-box">${escapeHtml(modal.error)}</div>` : ""}</div><footer class="modal-foot"><button class="small-btn" data-action="close-modal">Fechar</button></footer></section></div>`;
   }
   if (modal.type === "delete") {
     return `<div class="modal-backdrop"><section class="modal" role="dialog" aria-modal="true"><header class="modal-head"><span class="modal-title">Excluir ameaça</span><button class="modal-close" data-action="close-modal">×</button></header><div class="modal-content"><p style="font:13px/1.5 var(--sans)">Excluir <strong>${escapeHtml(selectedRecord()?.creature.name)}</strong>? A ficha e o estado local serão removidos deste navegador.</p></div><footer class="modal-foot"><button class="small-btn" data-action="close-modal">Cancelar</button><button class="danger-btn" data-action="confirm-delete">Excluir definitivamente</button></footer></section></div>`;
@@ -186,24 +208,29 @@ function renderModal(modal) {
     const items = [...(selectedRecord()?.runtime.history ?? [])].reverse();
     return `<div class="modal-backdrop" data-action="backdrop-close"><section class="modal" role="dialog" aria-modal="true"><header class="modal-head"><span class="modal-title">Histórico da ameaça</span><button class="modal-close" data-action="close-modal">×</button></header><div class="modal-content"><div class="history-list">${items.length ? items.map((item) => `<div class="history-line"><time>${escapeHtml(new Date(item.at).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }))}</time><span>${escapeHtml(item.message)}</span></div>`).join("") : `<div class="condition-empty">Nenhum evento registrado nesta ficha.</div>`}</div></div><footer class="modal-foot"><button class="small-btn" data-action="close-modal">Fechar</button></footer></section></div>`;
   }
+  if (modal.type === "roll-history") {
+    const items = [...(selectedRecord()?.runtime.rollHistory ?? [])].reverse();
+    return `<div class="modal-backdrop" data-action="backdrop-close"><section class="modal" role="dialog" aria-modal="true" aria-label="Histórico de rolagens"><header class="modal-head"><span class="modal-title">Histórico de rolagens</span><button class="modal-close" data-action="close-modal">×</button></header><div class="modal-content"><div class="roll-history-list">${items.length ? items.map((item) => `<article class="roll-history-entry"><div class="roll-history-head"><time>${escapeHtml(new Date(item.at).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }))}</time><b>${escapeHtml(item.title)}</b><strong>${escapeHtml(item.total)}</strong></div><small>${escapeHtml(item.expression || item.kind)}</small><details><summary>Detalhes dos dados</summary>${renderRollDetails(item.result)}</details></article>`).join("") : `<div class="condition-empty">Nenhuma rolagem registrada nesta ficha.</div>`}</div></div><footer class="modal-foot"><button class="small-btn" data-action="close-modal">Fechar</button></footer></section></div>`;
+  }
   if (modal.type === "roll") {
-    return `<div class="modal-backdrop"><section class="modal roll-modal" role="dialog" aria-modal="true"><header class="modal-head"><span class="modal-title">${escapeHtml(modal.result?.title ?? "Rolagem")}</span><button class="modal-close" data-action="close-modal">×</button></header><div class="roll-stage"><div class="roll-die ${modal.loading ? "rolling" : ""}">${modal.loading ? "?" : escapeHtml(modal.displayTotal ?? "—")}</div><div class="roll-title">${modal.loading ? "Dados em movimento" : "Resultado"}</div><div class="roll-expression">${escapeHtml(modal.expression ?? "")}</div>${modal.loading ? `<div class="roll-expression">Calculando os dados…</div>` : `<div class="roll-result">${escapeHtml(modal.displayTotal ?? "—")}</div>`}</div><div class="roll-details">${modal.loading ? "Aguardando o resultado da rolagem." : renderRollDetails(modal.result)}</div><footer class="modal-foot"><button class="small-btn" data-action="close-modal">Fechar</button></footer></section></div>`;
+    return `<aside class="roll-dock ${modal.loading ? "is-loading" : ""}" role="status" aria-live="polite"><header class="roll-dock-head"><span class="roll-dock-indicator"></span><b>${escapeHtml(modal.title ?? modal.result?.title ?? "Rolagem")}</b><button class="roll-dock-close" data-action="close-modal" aria-label="Fechar resultado">×</button></header><div class="roll-dock-main"><div class="roll-dock-expression">${escapeHtml(modal.expression ?? "")}</div><strong class="roll-dock-total">${modal.loading ? "…" : escapeHtml(modal.displayTotal ?? "—")}</strong></div><div class="roll-dock-status">${modal.loading ? "Rolando dados…" : "Resultado calculado"}</div>${modal.loading ? "" : `<details class="roll-dock-details"><summary>Detalhes</summary>${renderRollDetails(modal.result)}</details>`}</aside>`;
   }
   return "";
 }
 
 function renderRollDetails(result) {
   if (!result) return "";
-  const results = result.kind === "attack" ? [result.test, result.damage].filter(Boolean) : result.roll ? [result.roll] : result.test ? [result.test] : [];
-  const title = result.kind === "attack" ? "ATAQUE" : result.kind === "ability" ? "HABILIDADE" : "TESTE";
+  const results = result.kind === "attack" ? [result.test, result.damage].filter(Boolean) : result.roll ? [result.roll] : result.test ? [result.test] : result.parts ? [result] : [];
+  const title = result.kind === "attack" ? "ATAQUE" : result.kind === "ability" ? "HABILIDADE" : result.kind === "skill" ? "TESTE DE PERÍCIA" : result.kind === "damage" ? "ROLAGEM DE DANO" : result.kind === "forced-failure" ? "FALHA AUTOMÁTICA" : "TESTE";
   let html = `<div><strong>${title}</strong></div>`;
   for (const [index, roll] of results.entries()) {
-    html += `<div class="roll-part"><b>${index === 0 ? (result.kind === "attack" ? "Teste de ataque" : "Rolagem") : "Dano"}</b><br>${escapeHtml(roll.expression)} = <strong>${roll.total}</strong><br>${roll.parts.map((part) => part.type === "dice" ? `${part.sign < 0 ? "−" : ""}${part.count}d${part.sides}: [${part.rolls.join(", ")}]` : `Modificador: ${part.value}`).join(" · ")}</div>`;
+    const partLabel = result.kind === "attack" ? (result.part === "damage" ? "Dano" : index === 0 ? "Teste de ataque" : "Dano") : result.kind === "damage" ? "Dano" : result.kind === "skill" ? "Teste de perícia" : "Rolagem";
+    html += `<div class="roll-part"><b>${partLabel}</b><br>${escapeHtml(roll.expression)} = <strong>${roll.total}</strong><br>${roll.parts.map((part) => part.type === "dice" ? `${part.sign < 0 ? "−" : ""}${part.count}d${part.sides}: [${part.rolls.join(", ")}]` : `Modificador: ${part.value}`).join(" · ")}</div>`;
   }
   if (result.critical) html += `<div class="roll-part">Crítico: ${escapeHtml(result.critical)} · Alcance: ${escapeHtml(result.range)}</div>`;
   if (result.effects) html += `<div class="roll-part">Efeitos: ${escapeHtml(result.effects)}</div>`;
   if (result.description) html += `<div class="roll-part">${escapeHtml(result.description)}</div>`;
-  if (!results.length) html += `<div class="roll-part">Esta habilidade não possui uma rolagem associada.</div>`;
+  if (!results.length && result.kind !== "forced-failure") html += `<div class="roll-part">Esta habilidade não possui uma rolagem associada.</div>`;
   return html;
 }
 
@@ -277,7 +304,16 @@ async function handleClick(event) {
     await saveRecord(changeHitPoints(record, amount, action === "heal" ? "heal" : "damage"));
     return;
   }
-  if (action === "add-condition" && record) { state.modal = { type: "condition", error: "", form: { name: "", duration: "", description: "", modifiers: "{}" } }; render(); return; }
+  if (action === "add-condition" && record) { state.modal = { type: "condition", error: "", form: { name: "", duration: "", description: "", modifiers: "{}", preset: "Agarrado" } }; render(); return; }
+  if (action === "apply-preset-condition" && record) {
+    try {
+      const name = document.querySelector("#condition-preset")?.value;
+      const duration = document.querySelector("#condition-preset-duration")?.value ?? "";
+      const next = applyPresetCondition(record, name, duration);
+      await saveRecord(next); state.modal = null; render(); showToast(`${name} aplicada.`);
+    } catch (error) { state.modal.error = error.message; render(); }
+    return;
+  }
   if (action === "submit-condition" && record) {
     try {
       const name = document.querySelector("#condition-name")?.value ?? "";
@@ -305,15 +341,37 @@ async function handleClick(event) {
     await saveRecord(next); return;
   }
   if (action === "show-history" && record) { state.modal = { type: "history" }; render(); return; }
-  if (action === "roll-attack" && record) {
+  if (action === "show-roll-history" && record) { state.modal = { type: "roll-history" }; render(); return; }
+  if (["roll-attack", "roll-attack-test", "roll-attack-damage"].includes(action) && record) {
     const attack = record.creature.attacks.find((entry) => entry.id === control.dataset.id);
-    if (attack) startRoll(record, () => rollAttack(record, attack), `${attack.test || ""} ${attack.damage ? `· ${attack.damage}` : ""}`, attack.name || "Ataque");
+    if (attack) {
+      if (attackBlocked(record, attack)) { showToast(computeEffectiveStats(record).rules.includes("onlyLightWeapons") && !canUseAttackWhileGrappled(attack) ? "Agarrado: somente ataques com armas leves estão permitidos." : "Esta condição impede a criatura de realizar essa ação.", true); return; }
+      const part = action === "roll-attack-test" ? "test" : action === "roll-attack-damage" ? "damage" : "both";
+      startRoll(record, () => rollAttack(record, attack, part), `${attack.test || ""} ${attack.damage ? `· ${attack.damage}` : ""}`, attack.name || "Ataque");
+    }
+    return;
+  }
+  if (action === "roll-skill-test" && record) {
+    const item = (record.creature.skillTests ?? []).find((entry) => entry.id === control.dataset.id);
+    const restriction = item ? getSkillTestRestriction(record, item) : null;
+    if (item && restriction) showToast(restriction, true);
+    else if (item && !actionBlocked(record, item)) startRoll(record, () => rollSkillTest(record, item), item.test, item.name);
+    else if (item) showToast("A condição atual impede esse teste.", true);
+    return;
+  }
+  if (action === "roll-skill-damage" && record) {
+    const item = (record.creature.skillTests ?? []).find((entry) => entry.id === control.dataset.id);
+    const restriction = item ? getSkillTestRestriction(record, item) : null;
+    if (item && restriction) showToast(restriction, true);
+    else if (item?.damage && !actionBlocked(record, item)) startRoll(record, () => rollDamageExpression(record, item.damage), item.damage, `${item.name} · Dano`);
+    else if (item?.damage) showToast("A condição atual impede essa ação.", true);
     return;
   }
   if (action === "use-ability" && record) {
     const group = control.dataset.kind || "abilities";
     const ability = (record.creature[group] ?? []).find((entry) => entry.id === control.dataset.id);
     if (!ability) return;
+    if (actionBlocked(record, ability, { isReaction: group === "reactions" })) { showToast("A condição atual impede essa ação. Sob Paralisado, somente ações puramente mentais podem ser executadas.", true); return; }
     const resourceId = ability.resourceId;
     const cost = Math.max(0, Math.floor(safeNumber(ability.resourceCost, 0)));
     let currentRecord = record;
@@ -328,7 +386,13 @@ async function handleClick(event) {
   }
   if (action === "roll-stat") {
     const expression = control.dataset.expression;
-    if (expression) startRoll(record, () => rollStandalone(expression), expression, control.dataset.title || "Teste");
+    const statKey = control.dataset.stat || "";
+    const rules = computeEffectiveStats(record).rules;
+    if (statKey === "perception") {
+      const restriction = getSkillTestRestriction(record, { name: control.dataset.title || "Percepção", senseUse: control.dataset.senseUse || "observe" });
+      if (restriction) { showToast(restriction, true); return; }
+    }
+    if (expression) startRoll(record, () => statKey ? rollStat(record, expression, statKey) : rollStandalone(expression), expression, control.dataset.title || "Teste");
     return;
   }
 }
@@ -336,24 +400,24 @@ async function handleClick(event) {
 function startRoll(record, calculate, expression, title) {
   if (state.rollBusy) return;
   state.rollBusy = true;
-  state.modal = { type: "roll", loading: true, expression, result: { title }, displayTotal: "?" };
+  state.modal = { type: "roll", loading: true, expression, result: { title }, displayTotal: "?", title };
   render();
   window.setTimeout(async () => {
     try {
       const result = calculate();
+      const displayTotal = result.kind === "attack" ? (result.test?.total ?? result.damage?.total ?? "—") : result.roll?.total ?? result.total ?? "—";
       if (record && record.id === selectedRecord()?.id) {
         const next = structuredClone(record);
-        const testTotal = result.kind === "attack" ? result.test.total : result.roll?.total ?? result.total;
-        pushHistory(next, `${title}: ${testTotal ?? "consulta"}.`);
+        pushRollHistory(next, title, result);
         await saveRecord(next);
       }
-      state.modal = { type: "roll", loading: false, expression, result, title, displayTotal: result.kind === "attack" ? result.test.total : result.roll?.total ?? result.total };
+      state.modal = { type: "roll", loading: false, expression, result, title, displayTotal };
     } catch (error) {
       state.modal = { type: "roll", loading: false, expression, title, result: { title, description: error.message }, displayTotal: "ERRO" };
     }
     state.rollBusy = false;
     render();
-  }, 650);
+  }, 280);
 }
 
 function slug(value) {
@@ -382,11 +446,19 @@ ROOT.addEventListener("input", (event) => {
       name: ROOT.querySelector("#condition-name")?.value ?? "",
       duration: ROOT.querySelector("#condition-duration")?.value ?? "",
       description: ROOT.querySelector("#condition-description")?.value ?? "",
-      modifiers: ROOT.querySelector("#condition-modifiers")?.value ?? "{}"
+      modifiers: ROOT.querySelector("#condition-modifiers")?.value ?? "{}",
+      preset: ROOT.querySelector("#condition-preset")?.value ?? "Agarrado"
     };
   }
 });
 ROOT.addEventListener("change", async (event) => {
+  if (event.target.id === "condition-preset") {
+    const preset = CONDITION_PRESETS.find((item) => item.name === event.target.value);
+    const description = ROOT.querySelector("#condition-preset-description");
+    if (description && preset) description.textContent = preset.description;
+    if (state.modal?.form) state.modal.form.preset = event.target.value;
+    return;
+  }
   if (event.target.id === "json-file" && event.target.files?.[0]) {
     const file = event.target.files[0];
     try { state.modal.value = await file.text(); state.modal.error = ""; render(); }

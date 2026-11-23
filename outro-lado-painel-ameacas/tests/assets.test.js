@@ -30,3 +30,17 @@ test("todos os imports relativos de JavaScript apontam para arquivos existentes"
   }
   assert.deepEqual(missing, []);
 });
+
+test("todos os assets temáticos dos elementos existem", async () => {
+  for (const asset of ["sangue.svg", "morte.svg", "conhecimento.svg", "energia.svg", "medo.svg", "neutro.svg"]) {
+    await access(resolve(ROOT, "assets", "elements", asset));
+  }
+  const main = await readFile(resolve(ROOT, "src/main.js"), "utf8");
+  for (const element of ["sangue", "morte", "conhecimento", "energia", "medo"]) {
+    assert.ok(main.includes(`./assets/elements/${element}.svg`));
+  }
+  const css = await readFile(resolve(ROOT, "styles.css"), "utf8");
+  for (const theme of ["sangue", "morte", "conhecimento", "energia", "medo"]) {
+    assert.ok(css.includes(`.sheet.theme-${theme}`), `Tema CSS ausente: ${theme}`);
+  }
+});

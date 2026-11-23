@@ -9,8 +9,7 @@ export class ThreatValidationError extends Error {
 }
 
 export function createThreatTemplate() {
-  return {
-    schemaVersion: SCHEMA_VERSION,
+  return {    schemaVersion: SCHEMA_VERSION,
     creature: {
       name: "NOME DA AMEAÇA",
       vd: 0,
@@ -24,12 +23,16 @@ export function createThreatTemplate() {
       presence: { dt: null, mentalDamage: "", nex: "" },
       senses: { perception: "", initiative: "", special: "" },
       defense: 0,
-      saves: { fortitude: "", reflexes: "", will: "" },      hp: { max: 1, current: 1, woundedAt: null },
+      saves: { fortitude: "", reflexes: "", will: "" },
+      hp: { max: 1, current: 1, woundedAt: null },
       resistances: [],
       vulnerabilities: [],
       immunities: [],
       attributes: { agi: 0, for: 0, int: 0, pre: 0, vig: 0 },
       skills: [],
+      skillTests: [
+        { name: "Atletismo", attribute: "for", test: "1d20+0", damage: "" }
+      ],
       movement: { meters: 0, squares: null },
       attacks: [
         {
@@ -56,7 +59,8 @@ export function createThreatTemplate() {
       hpCurrent: 1,
       conditions: [],
       resources: {},
-      history: []
+      history: [],
+      rollHistory: []
     }
   };
 }
@@ -155,8 +159,18 @@ export function validateThreatPayload(payload) {
     if (creature.movement.meters !== undefined && (!isNumber(creature.movement.meters) || creature.movement.meters < 0)) addError(errors, "creature.movement.meters", "Informe uma distância numérica não negativa.");
     if (creature.movement.squares !== undefined && creature.movement.squares !== null && typeof creature.movement.squares !== "string" && !isNumber(creature.movement.squares)) addError(errors, "creature.movement.squares", "Informe texto, número ou null.");
   }
-  for (const field of ["resistances", "vulnerabilities", "immunities", "skills", "attacks", "abilities", "powers", "actions", "specialActions", "reactions", "features", "resources", "elementsSecondary"]) {
+  for (const field of ["resistances", "vulnerabilities", "immunities", "skills", "attacks", "abilities", "powers", "actions", "specialActions", "reactions", "features", "resources", "elementsSecondary", "skillTests"]) {
     if (creature[field] !== undefined && !Array.isArray(creature[field])) addError(errors, `creature.${field}`, "Era esperado uma lista (array).");
+  }
+  for (const [index, skillTest] of ensureArray(creature.skillTests).entries()) {
+    if (!isObject(skillTest)) { addError(errors, `creature.skillTests[${index}]`, "Era esperado um objeto de teste de perícia."); continue; }
+    if (typeof skillTest.name !== "string" || !skillTest.name.trim()) addError(errors, `creature.skillTests[${index}].name`, "Informe o nome da perícia ou teste.");
+    if (skillTest.attribute !== undefined && !["agi", "for", "int", "pre", "vig"].includes(skillTest.attribute)) addError(errors, `creature.skillTests[${index}].attribute`, "Use agi, for, int, pre ou vig.");
+    if (skillTest.senseUse !== undefined && !["observe", "hear"].includes(skillTest.senseUse)) addError(errors, `creature.skillTests[${index}].senseUse`, 'Use "observe" ou "hear" para testes de Percepção sensoriais.');
+    for (const field of ["test", "damage"]) if (skillTest[field]) {
+      const validation = validateDiceExpression(skillTest[field]);
+      if (!validation.valid) addError(errors, `creature.skillTests[${index}].${field}`, validation.error);
+    }
   }
   for (const [index, attack] of ensureArray(creature.attacks).entries()) {
     if (!isObject(attack)) { addError(errors, `creature.attacks[${index}]`, "Era esperado um objeto de ataque."); continue; }
@@ -193,6 +207,7 @@ export function validateThreatPayload(payload) {
     if (typeof condition.name !== "string" || !condition.name.trim()) addError(errors, `state.conditions[${index}].name`, "Informe o nome da condição.");
     try { validateConditionModifiers(condition.modifiers ?? {}); }
     catch (error) { addError(errors, `state.conditions[${index}].modifiers`, error.message); }
+    if (condition.rules !== undefined && (!Array.isArray(condition.rules) || condition.rules.some((rule) => typeof rule !== "string"))) addError(errors, `state.conditions[${index}].rules`, "Informe uma lista de regras em texto.");
   }
   if (state?.resources !== undefined && !isObject(state.resources)) addError(errors, "state.resources", "Era esperado um objeto de recursos por identificador.");
   else if (isObject(state?.resources)) for (const [key, value] of Object.entries(state.resources)) if (!Number.isInteger(value) || value < 0) addError(errors, `state.resources.${key}`, "Informe um inteiro não negativo.");
@@ -222,6 +237,7 @@ export function normalizeThreatPayload(payload, { id = crypto.randomUUID(), now 
     immunities: ensureArray(raw.immunities),
     attributes: { agi: 0, for: 0, int: 0, pre: 0, vig: 0, ...(isObject(raw.attributes) ? raw.attributes : {}) },
     skills: ensureArray(raw.skills),
+    skillTests: ensureArray(raw.skillTests).map((item) => ({ ...item, id: item.id || crypto.randomUUID() })),
     movement: { meters: 0, squares: null, ...(isObject(raw.movement) ? raw.movement : {}) },
     attacks: ensureArray(raw.attacks).map((item) => ({ ...item, id: item.id || crypto.randomUUID() })),
     abilities: ensureArray(raw.abilities).map((item) => ({ ...item, id: item.id || crypto.randomUUID() })),
@@ -241,7 +257,8 @@ export function normalizeThreatPayload(payload, { id = crypto.randomUUID(), now 
     hpCurrent: Number.isInteger(incomingState.hpCurrent) ? Math.min(creature.hp.max, Math.max(0, incomingState.hpCurrent)) : creature.hp.current,
     conditions: ensureArray(incomingState.conditions).map((condition) => ({ ...condition, id: condition.id || crypto.randomUUID() })),
     resources: { ...resources, ...(isObject(incomingState.resources) ? incomingState.resources : {}) },
-    history: ensureArray(incomingState.history).slice(-100)
+    history: ensureArray(incomingState.history).slice(-100),
+    rollHistory: ensureArray(incomingState.rollHistory).slice(-100)
   };
   return { id, creature, runtime, createdAt: now, updatedAt: now };
 }
@@ -257,15 +274,33 @@ export function exportThreatRecord(record) {
 
 export function computeEffectiveStats(record) {
   const { creature, runtime } = record;
-  const totals = { defense: 0, fortitude: 0, reflexes: 0, will: 0, perception: 0, initiative: 0, movement: 0, attack: 0, damage: 0, diceCount: { attack: 0, damage: 0, abilities: 0 }, attributes: {}, saves: {}, senses: {} };
+  const totals = {
+    defense: 0, defenseMelee: 0, defenseRanged: 0, movement: 0, movementMultiplier: 1,
+    movementSet: null, attack: 0, damage: 0,
+    diceCount: { attack: 0, damage: 0, abilities: 0, attackMelee: 0, attackRanged: 0, attributes: {}, senses: {}, fortitude: 0, reflexes: 0, will: 0 },
+    attributes: {}, saves: {}, senses: {}, rules: new Set()
+  };
   for (const condition of runtime.conditions ?? []) {
     const mod = condition.modifiers ?? {};
-    for (const key of ["defense", "movement", "attack", "damage", "fortitude", "reflexes", "will", "perception", "initiative"]) {
+    for (const key of ["defense", "defenseMelee", "defenseRanged", "movement", "attack", "damage", "fortitude", "reflexes", "will", "perception", "initiative"]) {
       if (isNumber(mod[key])) totals[key] += mod[key];
     }
-    for (const group of ["attributes", "saves", "senses", "diceCount"]) {
+    if (isNumber(mod.movementMultiplier)) totals.movementMultiplier = Math.min(totals.movementMultiplier, mod.movementMultiplier);
+    if (isNumber(mod.movementSet)) totals.movementSet = totals.movementSet === null ? mod.movementSet : Math.min(totals.movementSet, mod.movementSet);
+    for (const group of ["attributes", "saves", "senses"]) {
       if (isObject(mod[group])) for (const [key, value] of Object.entries(mod[group])) if (isNumber(value)) totals[group][key] = (totals[group][key] ?? 0) + value;
     }
+    if (isObject(mod.diceCount)) {
+      for (const [key, value] of Object.entries(mod.diceCount)) {
+        if (isNumber(value)) totals.diceCount[key] = (totals.diceCount[key] ?? 0) + value;
+        else if (["attributes", "senses"].includes(key) && isObject(value)) {
+          for (const [nestedKey, nestedValue] of Object.entries(value)) if (isNumber(nestedValue)) {
+            totals.diceCount[key][nestedKey] = (totals.diceCount[key][nestedKey] ?? 0) + nestedValue;
+          }
+        }
+      }
+    }
+    for (const rule of condition.rules ?? []) totals.rules.add(rule);
   }
   const numberFrom = (value) => typeof value === "number" ? value : (typeof value === "string" && /^[-+]?\d+(?:\.\d+)?$/.test(value.trim()) ? Number(value) : null);
   const effectiveExpression = (baseValue, flatBonus, diceAdjustment) => {
@@ -288,36 +323,49 @@ export function computeEffectiveStats(record) {
   for (const key of ["perception", "initiative"]) {
     const base = creature.senses?.[key] ?? "";
     const bonus = totals[key] + (totals.senses[key] ?? 0);
-    senses[key] = { base, value: effectiveExpression(base, bonus, totals.diceCount[key] ?? 0) };
+    const diceAdjustment = (totals.diceCount[key] ?? 0) + (totals.diceCount.senses[key] ?? 0);
+    senses[key] = { base, value: effectiveExpression(base, bonus, diceAdjustment) };
   }
   const attributes = {};
   for (const key of ["agi", "for", "int", "pre", "vig"]) attributes[key] = { base: creature.attributes?.[key] ?? 0, value: (creature.attributes?.[key] ?? 0) + (totals.attributes[key] ?? 0) };
+  const baseMovement = creature.movement?.meters ?? 0;
+  let movement = totals.movementSet === null ? baseMovement * totals.movementMultiplier : totals.movementSet;
+  if (totals.rules.has("immobile")) movement = 0;
   return {
     defense: { base: creature.defense, value: creature.defense + totals.defense },
+    defenseMelee: { base: creature.defense, value: creature.defense + totals.defense + totals.defenseMelee },
+    defenseRanged: { base: creature.defense, value: creature.defense + totals.defense + totals.defenseRanged },
     saves, senses, attributes,
-    movement: { base: creature.movement?.meters ?? 0, value: Math.max(0, (creature.movement?.meters ?? 0) + totals.movement) },
-    attackBonus: totals.attack,
-    damageBonus: totals.damage,
-    diceCount: totals.diceCount
+    movement: { base: baseMovement, value: Math.max(0, movement) },
+    attackBonus: totals.attack, damageBonus: totals.damage,
+    diceCount: totals.diceCount, rules: [...totals.rules]
   };
 }
 
 export function validateConditionModifiers(modifiers) {
   if (!isObject(modifiers)) throw new Error("Os modificadores devem ser um objeto JSON.");
-  const allowed = new Set(["defense", "movement", "attack", "damage", "fortitude", "reflexes", "will", "perception", "initiative", "attributes", "saves", "senses", "diceCount"]);
+  const allowed = new Set(["defense", "defenseMelee", "defenseRanged", "movement", "movementMultiplier", "movementSet", "attack", "damage", "fortitude", "reflexes", "will", "perception", "initiative", "attributes", "saves", "senses", "diceCount"]);
   const nestedAllowed = {
     attributes: new Set(["agi", "for", "int", "pre", "vig"]),
     saves: new Set(["fortitude", "reflexes", "will"]),
     senses: new Set(["perception", "initiative"]),
-    diceCount: new Set(["attack", "damage", "abilities", "fortitude", "reflexes", "will", "perception", "initiative"])
+    diceCount: new Set(["attack", "damage", "abilities", "attackMelee", "attackRanged", "fortitude", "reflexes", "will", "perception", "initiative", "attributes", "senses"])
   };
   for (const [key, value] of Object.entries(modifiers)) {
     if (!allowed.has(key)) throw new Error(`Modificador “${key}” não reconhecido.`);
+    if (["movementMultiplier"].includes(key) && (!isNumber(value) || value < 0 || value > 1)) throw new Error(`“${key}” precisa ser um número entre 0 e 1.`);
+    if (key === "movementSet" && (!isNumber(value) || value < 0)) throw new Error(`“${key}” precisa ser uma distância não negativa.`);
     if (nestedAllowed[key]) {
       if (!isObject(value)) throw new Error(`O modificador “${key}” deve ser um objeto.`);
       for (const [nestedKey, nestedValue] of Object.entries(value)) {
         if (!nestedAllowed[key].has(nestedKey)) throw new Error(`Modificador “${key}.${nestedKey}” não reconhecido.`);
-        if (!isNumber(nestedValue)) throw new Error(`“${key}.${nestedKey}” precisa ser numérico.`);
+        if (key === "diceCount" && ["attributes", "senses"].includes(nestedKey)) {
+          if (!isObject(nestedValue)) throw new Error(`“diceCount.${nestedKey}” deve ser um objeto.`);
+          const nestedKeys = nestedKey === "attributes" ? new Set(["agi", "for", "int", "pre", "vig"]) : new Set(["perception", "initiative"]);
+          for (const [subKey, subValue] of Object.entries(nestedValue)) {
+            if (!nestedKeys.has(subKey) || !isNumber(subValue)) throw new Error(`“diceCount.${nestedKey}.${subKey}” precisa ser uma chave válida com valor numérico.`);
+          }
+        } else if (!isNumber(nestedValue)) throw new Error(`“${key}.${nestedKey}” precisa ser numérico.`);
       }
     } else if (!isNumber(value)) throw new Error(`“${key}” precisa ser numérico.`);
   }
@@ -327,8 +375,11 @@ export function validateConditionModifiers(modifiers) {
 export function addCondition(record, condition) {
   if (!condition || typeof condition.name !== "string" || !condition.name.trim()) throw new Error("A condição precisa de um nome.");
   validateConditionModifiers(condition.modifiers ?? {});
+  const allowedRules = new Set(["immobile", "onlyLightWeapons", "rangedAttackMisfire50", "cannotObserve", "attacksTargetTotalConcealment", "incapacitated", "cannotAct", "cannotReact", "reflexesAutoFail", "cannotHear", "ritualsPoorCondition", "mentalOnly", "resistanceAll10"]);
+  const rules = ensureArray(condition.rules);
+  for (const rule of rules) if (!allowedRules.has(rule)) throw new Error(`Regra de condição “${rule}” não reconhecida.`);
   const next = clone(record);
-  const entry = { id: crypto.randomUUID(), name: condition.name.trim(), duration: stringOr(condition.duration), description: stringOr(condition.description), modifiers: condition.modifiers ?? {}, appliedAt: new Date().toISOString() };
+  const entry = { id: crypto.randomUUID(), name: condition.name.trim(), duration: stringOr(condition.duration), description: stringOr(condition.description), modifiers: condition.modifiers ?? {}, rules, appliedAt: new Date().toISOString() };
   next.runtime.conditions.push(entry);
   pushHistory(next, `Condição aplicada: ${entry.name}.`);
   return next;
@@ -346,9 +397,16 @@ export function changeHitPoints(record, amount, operation = "damage") {
   if (!Number.isInteger(amount) || amount < 0) throw new Error("Informe uma quantidade inteira não negativa.");
   const next = clone(record);
   const before = next.runtime.hpCurrent;
-  next.runtime.hpCurrent = operation === "heal" ? Math.min(next.creature.hp.max, before + amount) : Math.max(0, before - amount);
+  const resistant = operation !== "heal" && computeEffectiveStats(next).rules.includes("resistanceAll10");
+  const mitigated = resistant ? Math.min(10, amount) : 0;
+  const effectiveAmount = operation === "heal" ? amount : Math.max(0, amount - mitigated);
+  next.runtime.hpCurrent = operation === "heal" ? Math.min(next.creature.hp.max, before + effectiveAmount) : Math.max(0, before - effectiveAmount);
   const changed = Math.abs(next.runtime.hpCurrent - before);
-  if (changed) pushHistory(next, `${operation === "heal" ? "Recuperou" : "Sofreu"} ${changed} PV (${before} → ${next.runtime.hpCurrent}).`);
+  if (operation === "heal" && changed) pushHistory(next, `Recuperou ${changed} PV (${before} → ${next.runtime.hpCurrent}).`);
+  else if (operation !== "heal" && amount > 0) {
+    const suffix = mitigated ? ` (Resistência 10: ${mitigated} de dano reduzido)` : "";
+    pushHistory(next, `Sofreu ${effectiveAmount} dano${suffix} (${before} → ${next.runtime.hpCurrent}).`);
+  }
   return next;
 }
 
@@ -366,6 +424,17 @@ export function changeResource(record, resourceId, amount) {
 
 export function pushHistory(record, message) {
   record.runtime.history = [...(record.runtime.history ?? []), { at: new Date().toISOString(), message }].slice(-100);
+}
+
+export function pushRollHistory(record, title, result) {
+  const at = new Date().toISOString();
+  const total = result?.kind === "attack" ? (result.test?.total ?? result.damage?.total) : result?.roll?.total ?? result?.total;
+  record.runtime.rollHistory = [...(record.runtime.rollHistory ?? []), {
+    at, title: String(title || "Rolagem"), kind: result?.kind || "test",
+    total: total ?? "—", expression: result?.expression || result?.test?.expression || result?.roll?.expression || "",
+    result: clone(result)
+  }].slice(-100);
+  pushHistory(record, `${title}: ${total ?? "consulta"}.`);
 }
 
 export function adjustDiceCount(expression, adjustment) {
