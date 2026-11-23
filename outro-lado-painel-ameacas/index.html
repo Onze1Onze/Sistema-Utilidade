@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <meta name="theme-color" content="#f1f0ec" />
+  <meta name="color-scheme" content="light" />
+  <title>Outro Lado — Painel de Ameaças</title>
+  <link rel="icon" href="./icon.svg" type="image/svg+xml" />
+  <link rel="stylesheet" href="./styles.css" />
+  <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin />
+  <link rel="modulepreload" href="https://cdn.jsdelivr.net/npm/@owlbear-rodeo/sdk@3.1.0/+esm" crossorigin />
+  <script>
+    // OBR_READY é enviado uma única vez pelo host; o buffer evita perder o handshake
+    // enquanto o módulo do SDK é baixado e avaliado.
+    window.__OL_OBR_READY_BUFFER__ = null;
+    window.addEventListener("message", function (event) {
+      if (event.source !== window.parent || !event.data || event.data.id !== "OBR_READY") return;
+      window.__OL_OBR_READY_BUFFER__ = { data: event.data, origin: event.origin, replayed: false };
+    });
+  </script>
+</head>
+<body>
+  <main id="app" aria-live="polite">
+    <div class="boot-screen"><span class="boot-mark">OL</span><span>INICIALIZANDO PAINEL DE AMEAÇAS</span></div>
+  </main>
+  <noscript>Esta extensão precisa de JavaScript habilitado.</noscript>
+  <script type="module" src="./src/main.js"></script>
+</body>
+</html>

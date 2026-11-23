@@ -1,16 +1,16 @@
 {
-  "name": "Outro Lado — Painel de Ameaças",
-  "version": "1.0.0",
+  "name": "Sistema de Fechaduras",
+  "version": "1.0.6",
   "manifest_version": 1,
-  "description": "Fichas privadas e interativas de Ameaças de Ordem Paranormal para o Mestre.",
+  "description": "Minijogos de pinos no estilo Oblivion, hacking e painel numérico para Owlbear Rodeo.",
   "author": "Onze1Onze",
-  "homepage_url": "https://github.com/Onze1Onze/Sistema-Utilidade/tree/main/outro-lado-painel-ameacas",
-  "icon": "https://cdn.jsdelivr.net/gh/Onze1Onze/Sistema-Utilidade@main/outro-lado-painel-ameacas/icon.svg",
+  "icon": "https://rawcdn.githack.com/Onze1Onze/Sistema-Utilidade/20576d1e1a4ed99ad10fb2941e018b209cbf5433/icon.svg",
+  "background_url": "https://rawcdn.githack.com/Onze1Onze/Sistema-Utilidade/20576d1e1a4ed99ad10fb2941e018b209cbf5433/background.html",
   "action": {
-    "title": "Painel de Ameaças",
-    "icon": "https://cdn.jsdelivr.net/gh/Onze1Onze/Sistema-Utilidade@main/outro-lado-painel-ameacas/icon.svg",
-    "popover": "https://cdn.jsdelivr.net/gh/Onze1Onze/Sistema-Utilidade@main/outro-lado-painel-ameacas/index.html",
-    "width": 1120,
-    "height": 820
+    "title": "Sistema de Fechaduras",
+    "icon": "https://rawcdn.githack.com/Onze1Onze/Sistema-Utilidade/20576d1e1a4ed99ad10fb2941e018b209cbf5433/icon.svg",
+    "popover": "https://rawcdn.githack.com/Onze1Onze/Sistema-Utilidade/20576d1e1a4ed99ad10fb2941e018b209cbf5433/index.html",
+    "width": 980,
+    "height": 700
   }
 }

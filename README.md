@@ -1,56 +1,48 @@
-# Outro Lado — Painel de Ameaças
+# Sistema de Fechaduras — Owlbear Rodeo
 
-Extensão para Owlbear Rodeo voltada ao gerenciamento privado de fichas de Ameaças de Ordem Paranormal pelo Mestre.
+Extensão para Owlbear Rodeo com três minijogos controlados pelo mestre: abrir fechadura, hacking de matriz e painel numérico.
 
-## Instalação
+## Instalação — versão 1.0.6
 
-Manifesto da pasta:
+Use o manifesto da branch principal:
+`https://cdn.jsdelivr.net/gh/Onze1Onze/Sistema-Utilidade@ff3cd5927e2a769f89ce2f627a3a341851bb0c7d/manifest.json`
 
-    https://cdn.jsdelivr.net/gh/Onze1Onze/Sistema-Utilidade@main/outro-lado-painel-ameacas/manifest.json
+1. No Owlbear Rodeo, abra **Extras → Extensions → Add**.
+2. Cole a URL do manifesto.
+3. Ative a extensão na sala.
+4. O mestre abre a ação, escolhe o minijogo, configura a dificuldade e seleciona **Preparar e liberar**.
+5. Os jogadores recebem somente a tela do minijogo ativo. Sem sessão liberada, a janela dos jogadores permanece vazia.
 
-No Owlbear Rodeo, abra **Extras → Extensions → Add**, cole a URL do manifesto e ative a extensão na sala. A ação **Painel de Ameaças** aparece na barra superior.
+## Inicialização do Owlbear SDK
 
-## Privacidade
+O SDK oficial `@owlbear-rodeo/sdk` 3.1.0 é importado estaticamente no início dos módulos de interface e de fundo. Não usar `import()` dinâmico para o SDK: ele instala o listener de `window.message` durante a avaliação do módulo e precisa receber o evento único `OBR_READY` enviado pelo host.
 
-- A interface consulta `OBR.player.getRole()` antes de abrir o armazenamento privado.
-- Para uma sessão com papel `PLAYER`, a ação é fechada e a interface exibe somente a mensagem de acesso restrito.
-- Fichas, estado atual, condições, recursos e histórico são persistidos no IndexedDB do navegador do Mestre, com fallback para `localStorage`.
-- A extensão não grava fichas em metadados da sala, não usa broadcast para as fichas e não envia os dados para serviços externos.
-- O armazenamento é local ao navegador/perfil que está atuando como Mestre; não é sincronizado entre dispositivos. Exporte JSON para fazer cópias de segurança ou transferir fichas.
+O HTML registra um listener inline antes dos módulos e guarda o evento `OBR_READY` se o SDK ainda não estiver carregado. Após a avaliação do módulo, o evento é reentregue ao SDK com a origem original. O SDK então valida essa origem contra a origem decodificada do parâmetro `obrref` na URL do iframe. A interface é renderizada antes da conexão; ações que necessitam do Owlbear aguardam a inicialização em vez de falhar imediatamente.
 
-## Fluxo JSON
+## Minijogos
 
-O botão `+` abre o modelo completo. Preencha o JSON externamente ou diretamente no editor e use **Validar e importar**. A edição funciona pelo mesmo editor: exporte, altere e salve. O formato mantém `creature` (dados-base) separado de `state` (vida atual, condições, recursos e histórico).
+- **Abrir Fechadura:** minijogo de pinos inspirado em Oblivion. Cada pino segue um movimento suave e desacelera perto do topo. A faixa de acerto é mais ampla e aceita cliques tanto na subida quanto na descida. Cinco presets equilibram a quantidade de pinos, as gazuas, o tamanho da faixa e a velocidade; os ajustes avançados também permitem ampliar a janela e reduzir a velocidade. Os níveis difíceis continuam exigindo atenção, mas deixam margem para erros.
+- **Hacking:** matriz de códigos, sequência-alvo, seleção alternada entre coluna e linha e buffer configurável.
+- **Painel Numérico:** senha definida pelo mestre, teclado numérico e validação no processo de fundo do mestre.
 
-O schema é versionado (`schemaVersion: 1`) e mantém propriedades desconhecidas dentro do objeto da criatura, permitindo estender a ficha sem perder campos futuros.
+## Comunicação entre jogador e mestre
 
-## Sistemas implementados
+A conexão usa o canal `com.onze11.sistema-utilidade/v1` do `OBR.broadcast`.
 
-- Bandeja vertical com busca e cartões das ameaças.
-- Criação, importação, edição, duplicação, exclusão e exportação JSON.
-- Validação com caminho do campo e mensagem do formato esperado.
-- Vida atual/máxima, aplicação de dano e cura com limites.
-- Condições criadas pelo Mestre com modificadores numéricos para Defesa, salvaguardas, sentidos, deslocamento, ataques, dano, atributos e quantidade de dados.
-- Exibição de valor-base e valor modificado; remover uma condição recalcula os valores derivados.
-- Recursos mutáveis, ataques e habilidades interativos.
-- Parser e rolador para expressões como `1d20`, `2d20+10`, `4d6`, `2d8+7` e expressões compostas com soma/subtração.
-- Feedback animado de rolagem e histórico local de alterações relevantes.
-- Interface responsiva com estrutura e linguagem visual inspiradas na ficha de referência anexada, reconstruídas em HTML/CSS.
+1. O jogador envia uma tentativa para os demais participantes com `destination: "REMOTE"`, incluindo sessão, jogo e um `requestId` único.
+2. O processo de fundo do mestre assina o canal, identifica o remetente pelo `event.connectionId`, lê o segredo privado da sessão e valida a tentativa com `resolvePlayerAttempt`.
+3. A resposta é enviada por `REMOTE` com `targetConnectionId`; cada interface de jogador só aceita a resposta que corresponde à sua própria conexão, sessão e `requestId`.
+4. O resultado também é enviado com `destination: "LOCAL"` para atualizar a interface do mestre, que mostra quem tentou, a resposta e as tentativas restantes.
+5. O processamento é serializado para evitar que duas tentativas simultâneas sobrescrevam o estado secreto.
 
-## Estrutura
-
-- `manifest.json` — manifesto do Owlbear.
-- `index.html` / `styles.css` — interface e layout.
-- `src/main.js` — integração com o SDK e eventos da interface.
-- `src/threat-engine.js` — modelo, validação, condições, modificadores e rolagens.
-- `src/dice.js` — execução de ataques e habilidades.
-- `src/storage.js` — persistência privada local.
-- `tests/threat-engine.test.js` — testes automatizados da lógica.
+A senha numérica, o estado autoritativo dos pinos e a quantidade de gazuas restantes ficam no dispositivo do mestre e não são enviados aos metadados públicos da sala. A configuração pública contém as velocidades/fases para animar cada pino e o limiar de precisão, que também define a faixa luminosa visível ao jogador. O mestre valida o clique contra sua cópia privada desse limiar. A matriz e a sequência do hacking são públicas porque são pistas do desafio.
 
 ## Desenvolvimento e testes
 
-O SDK Owlbear é importado estaticamente na versão 3.1.0, seguindo o padrão já usado no repositório. Para executar os testes de lógica com Node.js 20 ou superior:
+A lógica de validação está em `game-logic.js`. Execute com Node.js 20 ou superior:
 
-    node --test outro-lado-painel-ameacas/tests/*.test.js
+`npm test`
 
-A extensão é estática e não requer etapa de build. As rolagens e modificadores são genéricos e configuráveis; a extensão não define regras oficiais de condições nem preenche estatísticas de criaturas que não foram fornecidas pelo Mestre.
+A suíte cobre geração de matrizes, movimento suave e faixa de acerto dos pinos nos dois sentidos, margem de gazuas por dificuldade, quebra de gazuas, conclusão de fechaduras, validação das três modalidades, handshake do SDK, arbitragem de tentativas, entrega de resposta ao jogador e atualização visual do mestre. O GitHub Actions executa os testes em cada push e pull request.
+
+A interface não exige etapa de compilação. O SDK é importado da distribuição ESM do jsDelivr; os arquivos da extensão são estáticos.
