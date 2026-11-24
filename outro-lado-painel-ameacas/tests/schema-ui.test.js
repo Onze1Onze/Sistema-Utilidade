@@ -24,9 +24,21 @@ test("vida machucada fica destacada e cura acelerada não exige quantidade digit
   assert.ok(!main.includes('id="hp-amount"'));
 });
 
-test("resultados de dano oferecem tipos, Ignorar RD e aplicação direta de PV", () => {
+test("rolagens de dano da ameaça não descontam PV dela mesma", () => {
+  const rollStart = main.indexOf('if (modal.type === "roll") {');
+  const rollEnd = main.indexOf('  return "";', rollStart);
+  const rollPanel = main.slice(rollStart, rollEnd);
+  assert.ok(rollStart >= 0);
+  assert.doesNotMatch(rollPanel, /apply-rolled-damage|roll-damage-apply|applyTypedDamage/);
+  assert.ok(rollPanel.includes("Dano causado ao alvo"));
+});
+
+test("dano recebido pela ameaça tem uma ação independente com tipos e valores predefinidos", () => {
+  assert.ok(main.includes('data-action="receive-damage"'));
+  assert.ok(main.includes('data-action="select-incoming-damage-type"'));
+  assert.ok(main.includes('data-action="apply-incoming-damage"'));
+  assert.ok(main.includes('data-action="toggle-incoming-ignore-rd"'));
   assert.ok(main.includes("DAMAGE_TYPES.map"));
-  assert.ok(main.includes('id="roll-damage-type"'));
-  assert.ok(main.includes('id="ignore-damage-rd"'));
-  assert.ok(main.includes('data-action="apply-rolled-damage"'));
+  assert.ok(main.includes("const presets = [1, 2, 3, 4, 5, 6, 8, 10, 12, 15, 20, 25, 30, 40, 50]"));
+  assert.ok(!main.includes('id="hp-amount"'));
 });

@@ -198,7 +198,7 @@ function renderSheet(record) {
         <div class="sheet-column">
           <section class="sheet-block"><h3 class="block-title">Sentidos</h3><div class="senses-grid"><div class="sense-cell"><b>Percepção</b>${statMarkup(stats.senses.perception)}</div><div class="sense-cell"><b>Iniciativa</b>${statMarkup(stats.senses.initiative)}</div><div class="sense-cell"><b>Especiais</b><span>${escapeHtml(c.senses.special || "—")}</span></div></div><div style="display:flex;gap:5px;margin-top:5px;flex-wrap:wrap">${/[d]\d+/i.test(String(stats.senses.perception.value)) ? `<button class="small-btn" data-action="roll-stat" data-expression="${escapeHtml(stats.senses.perception.value)}" data-title="Percepção" data-stat="perception">Rolar percepção</button>` : ""}${/[d]\d+/i.test(String(stats.senses.initiative.value)) ? `<button class="small-btn" data-action="roll-stat" data-expression="${escapeHtml(stats.senses.initiative.value)}" data-title="Iniciativa" data-stat="initiative">Rolar iniciativa</button>` : ""}</div></section>
           <section class="sheet-block"><h3 class="block-title">Defesa e resistências</h3><div class="defense-panel"><div class="defense-number"><strong>${escapeHtml(stats.defense.value)}</strong><span>DEFESA</span>${stats.defense.value !== stats.defense.base ? `<small style="font:9px var(--sans);margin-top:4px">Base ${escapeHtml(stats.defense.base)}</small>` : ""}</div><div class="save-grid">${statRoll("Fortitude", stats.saves.fortitude, "fortitude")}${statRoll("Reflexos", stats.saves.reflexes, "reflexes")}${statRoll("Vontade", stats.saves.will, "will")}<div class="defense-situational"><span>Corpo a corpo <b>${escapeHtml(stats.defenseMelee.value)}</b></span><span>À distância <b>${escapeHtml(stats.defenseRanged.value)}</b></span></div></div></div>${stats.rules.includes("resistanceAll10") ? `<div class="condition-rule-banner">RESISTÊNCIA A DANO 10</div>` : ""}</section>
-          <section class="sheet-block"><h3 class="block-title">Pontos de vida <span class="minor">${c.hp.woundedAt !== null && c.hp.woundedAt !== undefined ? `Machucado ${escapeHtml(c.hp.woundedAt)}` : ""}</span></h3><div class="hp-panel"><div class="hp-side"><strong>PV</strong><span>VIDA</span></div><div class="hp-main"><div class="hp-numbers"><strong class="hp-current ${isWounded ? "is-wounded" : ""}">${r.hpCurrent}</strong><span class="hp-max">/ ${c.hp.max} PV</span></div><div class="hp-track"><span style="width:${hpPercent}%"></span></div><div class="hp-controls">${fastHealing > 0 ? `<button class="small-btn fast-heal-btn" data-action="fast-heal">＋ Cura acelerada (${fastHealing} PV)</button>` : `<span class="hp-control-hint">Dano aplicado pelas rolagens</span>`}</div></div></div></section>
+          <section class="sheet-block"><h3 class="block-title">Pontos de vida <span class="minor">${c.hp.woundedAt !== null && c.hp.woundedAt !== undefined ? `Machucado ${escapeHtml(c.hp.woundedAt)}` : ""}</span></h3><div class="hp-panel"><div class="hp-side"><strong>PV</strong><span>VIDA</span></div><div class="hp-main"><div class="hp-numbers"><strong class="hp-current ${isWounded ? "is-wounded" : ""}">${r.hpCurrent}</strong><span class="hp-max">/ ${c.hp.max} PV</span></div><div class="hp-track"><span style="width:${hpPercent}%"></span></div><div class="hp-controls"><button class="small-btn incoming-damage-btn" data-action="receive-damage">− Receber dano</button>${fastHealing > 0 ? `<button class="small-btn fast-heal-btn" data-action="fast-heal">＋ Cura acelerada (${fastHealing} PV)</button>` : ""}</div></div></div></section>
           ${renderTriad("Resistências", c.resistances)}${renderTriad("Vulnerabilidades", c.vulnerabilities)}${renderTriad("Imunidades", c.immunities)}
           <section class="sheet-block"><h3 class="block-title">Atributos</h3><div class="attributes">${attrNames.map(([key, label]) => `<div class="attribute"><label>${label}</label><div class="hex"><strong>${escapeHtml(stats.attributes[key].value)}</strong>${stats.attributes[key].value !== stats.attributes[key].base ? `<small>${stats.attributes[key].base}</small>` : ""}</div></div>`).join("")}</div></section>
           <section class="sheet-block"><h3 class="block-title">Perícias</h3><div class="skill-list">${skillMarkup}</div></section>
@@ -222,11 +222,6 @@ function renderSheet(record) {
   </article>`;
 }
 
-function getDamageRollFromResult(result) {
-  if (["attack", "ability"].includes(result?.kind)) return result.damage ?? null;
-  if (result?.kind === "damage") return result.roll ?? null;
-  return null;
-}
 function renderModal(modal) {
   if (modal.type === "json") {
     const title = modal.mode === "edit" ? "Editar ficha — JSON" : "Importar / criar ameaça";
@@ -274,13 +269,15 @@ function renderModal(modal) {
     const items = [...(selectedRecord()?.runtime.rollHistory ?? [])].reverse();
     return `<div class="modal-backdrop" data-action="backdrop-close"><section class="modal" role="dialog" aria-modal="true" aria-label="Histórico de rolagens"><header class="modal-head"><span class="modal-title">Histórico de rolagens</span><button class="modal-close" data-action="close-modal">×</button></header><div class="modal-content"><div class="roll-history-list">${items.length ? items.map((item) => `<article class="roll-history-entry"><div class="roll-history-head"><time>${escapeHtml(new Date(item.at).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }))}</time><b>${escapeHtml(item.title)}</b><strong>${escapeHtml(item.total)}</strong></div><small>${escapeHtml(item.expression || item.kind)}</small><details><summary>Detalhes dos dados</summary>${renderRollDetails(item.result)}</details></article>`).join("") : `<div class="condition-empty">Nenhuma rolagem registrada nesta ficha.</div>`}</div></div><footer class="modal-foot"><button class="small-btn" data-action="close-modal">Fechar</button></footer></section></div>`;
   }
+  if (modal.type === "incoming-damage") {
+    const damageType = modal.damageType || DAMAGE_TYPES[0];
+    const typeButtons = DAMAGE_TYPES.map((type) => `<button type="button" class="damage-type-option ${type === damageType ? "is-selected" : ""}" data-action="select-incoming-damage-type" data-type="${escapeHtml(type)}">${escapeHtml(type)}</button>`).join("");
+    const presets = [1, 2, 3, 4, 5, 6, 8, 10, 12, 15, 20, 25, 30, 40, 50];
+    const amountButtons = presets.map((amount) => `<button type="button" class="incoming-damage-amount" data-action="apply-incoming-damage" data-amount="${amount}">−${amount} PV</button>`).join("");
+    return `<div class="modal-backdrop" data-action="backdrop-close"><section class="modal incoming-damage-modal" role="dialog" aria-modal="true" aria-label="Receber dano"><header class="modal-head"><span class="modal-title">Aplicar dano recebido · ${escapeHtml(selectedRecord()?.creature.name ?? "Ameaça")}</span><button class="modal-close" data-action="close-modal" aria-label="Fechar">×</button></header><div class="modal-content"><p class="incoming-damage-hint">Este painel é para dano que a ameaça RECEBE dos jogadores. Rolagens de ataque e habilidade da ameaça não alteram os PV dela.</p><div class="damage-picker-label">1. Tipo de dano</div><div class="damage-type-grid">${typeButtons}</div><label class="ignore-rd-option incoming-ignore-rd"><input type="checkbox" data-action="toggle-incoming-ignore-rd" ${modal.ignoreRD ? "checked" : ""}><span>Ignorar RD</span></label><div class="damage-picker-label">2. Quantidade recebida · ${escapeHtml(damageType)}</div><div class="incoming-damage-grid">${amountButtons}</div><p class="incoming-damage-footnote">Cada botão aplica uma instância de dano. Para valores maiores ou compostos, clique em mais de um preset. Imunidades continuam sendo respeitadas.</p></div><footer class="modal-foot"><button class="small-btn" data-action="close-modal">Fechar</button></footer></section></div>`;
+  }
   if (modal.type === "roll") {
-    const damageRoll = getDamageRollFromResult(modal.result);
-    const damageTotal = damageRoll?.total;
-    const damageControls = Number.isInteger(damageTotal) && damageTotal >= 0
-      ? `<div class="roll-damage-apply"><label class="roll-damage-type" for="roll-damage-type"><span>Tipo de dano</span><select id="roll-damage-type">${DAMAGE_TYPES.map((type) => `<option value="${escapeHtml(type)}">${escapeHtml(type)}</option>`).join("")}</select></label><label class="ignore-rd-option"><input type="checkbox" id="ignore-damage-rd"><span>Ignorar RD</span></label><button class="primary-btn" data-action="apply-rolled-damage">Aplicar ${damageTotal} de dano à vida</button></div>`
-      : "";
-    return `<aside class="roll-dock ${modal.loading ? "is-loading" : ""}" role="status" aria-live="polite"><header class="roll-dock-head"><span class="roll-dock-indicator"></span><b>${escapeHtml(modal.title ?? modal.result?.title ?? "Rolagem")}</b><button class="roll-dock-close" data-action="close-modal" aria-label="Fechar resultado">×</button></header><div class="roll-dock-main"><div class="roll-dock-expression">${escapeHtml(modal.expression ?? "")}</div><strong class="roll-dock-total">${modal.loading ? "…" : escapeHtml(modal.displayTotal ?? "—")}</strong></div><div class="roll-dock-status">${modal.loading ? "Rolando dados…" : "Resultado calculado"}</div>${modal.loading ? "" : `${damageControls}<details class="roll-dock-details"><summary>Detalhes</summary>${renderRollDetails(modal.result)}</details>`}</aside>`;
+    return `<aside class="roll-dock ${modal.loading ? "is-loading" : ""}" role="status" aria-live="polite"><header class="roll-dock-head"><span class="roll-dock-indicator"></span><b>${escapeHtml(modal.title ?? modal.result?.title ?? "Rolagem")}</b><button class="roll-dock-close" data-action="close-modal" aria-label="Fechar resultado">×</button></header><div class="roll-dock-main"><div class="roll-dock-expression">${escapeHtml(modal.expression ?? "")}</div><strong class="roll-dock-total">${modal.loading ? "…" : escapeHtml(modal.displayTotal ?? "—")}</strong></div><div class="roll-dock-status">${modal.loading ? "Rolando dados…" : "Resultado calculado · Dano causado ao alvo"}</div>${modal.loading ? "" : `<details class="roll-dock-details"><summary>Detalhes</summary>${renderRollDetails(modal.result)}</details>`}</aside>`;
   }
   return "";
 }
@@ -374,12 +371,26 @@ async function handleClick(event) {
     showToast("Cura acelerada: +" + restored + " PV.");
     return;
   }
-  if (action === "apply-rolled-damage" && record) {
-    const damageRoll = getDamageRollFromResult(state.modal?.result);
-    const amount = damageRoll?.total;
-    if (!Number.isInteger(amount) || amount < 0) { showToast("Não há uma rolagem de dano válida para aplicar.", true); return; }
-    const damageType = document.querySelector("#roll-damage-type")?.value ?? DAMAGE_TYPES[0];
-    const ignoreRD = Boolean(document.querySelector("#ignore-damage-rd")?.checked);
+  if (action === "receive-damage" && record) {
+    state.modal = { type: "incoming-damage", damageType: DAMAGE_TYPES[0], ignoreRD: false };
+    render();
+    return;
+  }
+  if (action === "select-incoming-damage-type" && state.modal?.type === "incoming-damage") {
+    state.modal.damageType = control.dataset.type || DAMAGE_TYPES[0];
+    render();
+    return;
+  }
+  if (action === "toggle-incoming-ignore-rd" && state.modal?.type === "incoming-damage") {
+    state.modal.ignoreRD = Boolean(control.checked);
+    render();
+    return;
+  }
+  if (action === "apply-incoming-damage" && record && state.modal?.type === "incoming-damage") {
+    const amount = Number(control.dataset.amount);
+    if (!Number.isInteger(amount) || amount < 1) { showToast("Selecione um valor predefinido válido.", true); return; }
+    const damageType = state.modal.damageType || DAMAGE_TYPES[0];
+    const ignoreRD = Boolean(state.modal.ignoreRD);
     const result = applyTypedDamage(record, amount, damageType, { ignoreRD });
     state.modal = null;
     await saveRecord(result.record);

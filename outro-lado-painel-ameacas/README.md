@@ -1,6 +1,6 @@
 # Outro Lado — Painel de Ameaças
 
-Versão 1.4.0. Extensão para Owlbear Rodeo voltada ao gerenciamento privado de fichas de Ameaças de Ordem Paranormal pelo Mestre.
+Versão 1.4.1. Extensão para Owlbear Rodeo voltada ao gerenciamento privado de fichas de Ameaças de Ordem Paranormal pelo Mestre.
 
 ## Instalação
 
@@ -34,7 +34,7 @@ As condições são selecionadas em uma lista com descrição e grupo; clicar ap
 - Criação, importação, edição, duplicação, exclusão e exportação JSON.
 - Validação com caminho do campo e mensagem do formato esperado.
 - Vida atual/máxima com indicação vermelha ao atingir a faixa de Machucado (limite configurado em `creature.hp.woundedAt` ou metade dos PV quando não informado).
-- Dano vindo de rolagens é aplicado diretamente aos PV após seleção de um dos 13 tipos; RD específica e universal é calculada automaticamente, imunidades anulam o dano e a caixa `Ignorar RD` ignora somente reduções, nunca imunidades.
+- Rolagens de ataques e habilidades mostram apenas o dano que a ameaça causa aos jogadores; elas nunca alteram os PV da própria ameaça. Para ferir a ameaça, use separadamente o botão `Receber dano`, escolha um dos 13 tipos e clique em um valor predefinido. RD e imunidades são calculadas automaticamente; `Ignorar RD` ignora somente reduções, nunca imunidades.
 - Cura Acelerada recebe um botão próprio que cura automaticamente a quantidade configurada; não há campo para digitar valores manuais de dano ou cura.
 - Condições criadas pelo Mestre com modificadores numéricos para Defesa, salvaguardas, sentidos, deslocamento, ataques, dano, atributos e quantidade de dados.
 - Exibição de valor-base e valor modificado; remover uma condição recalcula os valores derivados.
@@ -81,8 +81,10 @@ O modelo padrão de criação agora segue a estrutura organizada por grupos: `ab
 
 Fichas antigas que usam `actions` como array são migradas automaticamente para `actions.other`; as entradas existentes são preservadas. O campo legado `skillTests` continua sendo aceito na importação, mas não aparece no novo modelo padrão.
 
-## Sistema de dano 1.4.0
+## Sistema de dano 1.4.1
 
-Os botões de rolagem de ataque, habilidade e dano exibem a ação **Aplicar dano à vida** quando há um resultado de dano. Selecione um tipo (Corte, Impacto, Balístico, Perfurante, Elétrico, Ácido, Frio, Fogo, Energia, Sangue, Conhecimento, Morte ou Medo) e aplique o total rolado. As resistências podem ser descritas como texto (por exemplo, `RD 5 contra Corte e Impacto`) ou objetos (`{"type":"Balístico","amount":8}`). É aplicada a maior RD que corresponda ao tipo, incluindo RD universal de condições. Imunidades anulam o dano mesmo com **Ignorar RD** marcado.
+A rolagem de dano de ataques, habilidades e ações da ameaça representa dano causado aos jogadores/alvos. O resultado é apenas exibido e registrado no histórico; nunca é usado para descontar os PV da ameaça que realizou o ataque.
 
-A Cura Acelerada pode ser informada em `creature.hp.fastHealing` como inteiro. Também é reconhecida em características/ações com texto como `Cura Acelerada 10`; nesse caso aparece um botão para curar automaticamente essa quantidade, respeitando o PV máximo.
+Para aplicar dano recebido pela própria ameaça, use o botão independente **Receber dano** na área de Pontos de Vida. Selecione o tipo de dano e um dos valores predefinidos. Cada clique aplica uma instância de dano, calcula a RD correspondente e respeita imunidades. A opção **Ignorar RD** ignora reduções, mas não imunidades.
+
+A Cura Acelerada permanece em um botão separado e recupera automaticamente a quantidade configurada, respeitando o PV máximo.
