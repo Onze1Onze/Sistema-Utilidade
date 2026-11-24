@@ -111,6 +111,16 @@ button:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-vis
 .hp-main{padding:7px 9px;min-width:0}
 .hp-numbers{display:flex;align-items:baseline;gap:5px;margin-bottom:5px}
 .hp-current{font:900 21px var(--sans)}
+.hp-current.is-wounded{color:#a52332}
+.hp-control-hint{font:9px var(--sans);color:#777168;text-transform:uppercase;letter-spacing:.04em}
+.fast-heal-btn{border-color:#6d8a67!important;color:#315b35!important}
+.roll-damage-apply{display:grid;gap:7px;padding:9px 10px 10px;border-top:1px solid #d0cdc5;background:#f0efe9}
+.roll-damage-type{display:grid;gap:4px;font:800 9px var(--sans);letter-spacing:.06em;text-transform:uppercase}
+.roll-damage-type select{width:100%;height:30px;border:1px solid #aaa69d;background:#fff;padding:4px 7px;color:#171717;font:12px var(--sans)}
+.ignore-rd-option{display:flex;align-items:center;gap:6px;font:10px var(--sans);cursor:pointer}
+.ignore-rd-option input{accent-color:#792626;margin:0}
+.roll-damage-apply .primary-btn{width:100%;min-height:30px;font-size:10px}
+
 .hp-max{font:700 12px var(--sans);color:#666}
 .hp-track{height:7px;background:#d4d1c8;border:1px solid #bbb7ad;overflow:hidden}
 .hp-track span{display:block;height:100%;background:var(--red);transition:width .2s}

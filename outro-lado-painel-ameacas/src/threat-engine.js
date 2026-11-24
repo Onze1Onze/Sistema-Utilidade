@@ -40,7 +40,8 @@ export function createThreatTemplate() {
       hp: {
         max: 1,
         current: 1,
-        woundedAt: null
+        woundedAt: null,
+        fastHealing: null
       },
       resistances: [],
       vulnerabilities: [],
@@ -182,6 +183,7 @@ export function validateThreatPayload(payload) {
   const hp = creature.hp;
   if (!isObject(hp)) addError(errors, "creature.hp", "Era esperado um objeto com max e current.");
   else {
+    if (hp.fastHealing !== undefined && hp.fastHealing !== null && (!Number.isInteger(hp.fastHealing) || hp.fastHealing < 0)) addError(errors, "creature.hp.fastHealing", "Informe um inteiro maior ou igual a zero ou null.");
     if (!Number.isInteger(hp.max) || hp.max < 1) addError(errors, "creature.hp.max", "Informe um inteiro maior que zero.");
     if (hp.current !== undefined && (!Number.isInteger(hp.current) || hp.current < 0)) addError(errors, "creature.hp.current", "Informe um inteiro maior ou igual a zero.");
     if (Number.isInteger(hp.max) && Number.isInteger(hp.current) && hp.current > hp.max) addError(errors, "creature.hp.current", "A vida atual não pode ultrapassar a vida máxima.");
@@ -508,6 +510,136 @@ export function changeHitPoints(record, amount, operation = "damage") {
   return next;
 }
 
+
+export const DAMAGE_TYPES = [
+  "Corte", "Impacto", "Balístico", "Perfurante", "Elétrico", "Ácido", "Frio",
+  "Fogo", "Energia", "Sangue", "Conhecimento", "Morte", "Medo"
+];
+
+const DAMAGE_TYPE_ALIASES = {
+  "Corte": ["corte", "cortante", "slashing"],
+  "Impacto": ["impacto", "contundente", "bludgeoning"],
+  "Balístico": ["balistico", "balistica", "ballistic"],
+  "Perfurante": ["perfurante", "perfuracao", "piercing"],
+  "Elétrico": ["eletrico", "eletrica", "eletricidade", "electric"],
+  "Ácido": ["acido", "acida", "acid"],
+  "Frio": ["frio", "cold"],
+  "Fogo": ["fogo", "flamejante", "fire"],
+  "Energia": ["energia", "energy"],
+  "Sangue": ["sangue", "blood"],
+  "Conhecimento": ["conhecimento", "knowledge"],
+  "Morte": ["morte", "death"],
+  "Medo": ["medo", "fear"]
+};
+
+function normalizedDamageText(value) {
+  return String(value ?? "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+}
+
+function damageTypesInText(value) {
+  const text = normalizedDamageText(value);
+  return DAMAGE_TYPES.filter((type) => DAMAGE_TYPE_ALIASES[type].some((alias) =>
+    new RegExp("(^|[^a-z0-9])" + alias + "([^a-z0-9]|$)").test(text)
+  ));
+}
+
+function numericDamageValue(value) {
+  if (isNumber(value) && value >= 0) return Math.floor(value);
+  if (typeof value === "string" && /^\s*\d+(?:\.\d+)?\s*$/.test(value)) return Math.floor(Number(value));
+  return null;
+}
+
+function universalDamageText(text) {
+  return /(?:^|[^a-z0-9])(?:todo dano|todos os danos|qualquer dano|geral|universal|all)(?:$|[^a-z0-9])/.test(text);
+}
+
+function parseResistanceEntry(entry) {
+  if (typeof entry === "string") {
+    const text = normalizedDamageText(entry);
+    const types = damageTypesInText(text);
+    const explicit = text.match(/(?:\brd\b|\bresistencia(?:\s+a)?(?:\s+dano)?|\breducao(?:\s+de\s+dano)?)\s*(?:de\s*)?(\d+)/)
+      ?? text.match(/\b(\d+)\s*(?:pontos?\s*(?:de\s*)?)?(?:rd|resistencia|reducao)\b/);
+    const fallback = text.match(/\b(\d+)\b/);
+    const amount = Number(explicit?.[1] ?? fallback?.[1]);
+    const all = universalDamageText(text) || (!types.length && /(?:\brd\b|resistencia|reducao)/.test(text));
+    return Number.isFinite(amount) ? { amount: Math.max(0, Math.floor(amount)), types, all } : null;
+  }
+  if (!isObject(entry)) return null;
+  const labels = [entry.damageType, entry.damageTypes, entry.type, entry.name, entry.target, entry.description, entry.label]
+    .flat(Infinity).filter((value) => typeof value === "string").join(" ");
+  const types = damageTypesInText(labels);
+  const amount = numericDamageValue(entry.amount ?? entry.rd ?? entry.reduction ?? entry.resistance ?? entry.value);
+  const text = normalizedDamageText(labels);
+  const all = entry.all === true || ["all", "todos", "geral", "universal"].includes(normalizedDamageText(entry.type))
+    || universalDamageText(text) || (!types.length && /(?:\brd\b|resistencia|reducao)/.test(text));
+  return amount === null ? null : { amount, types, all };
+}
+
+function flattenDamageEntries(entries) {
+  return Array.isArray(entries) ? entries.flat(Infinity) : entries === null || entries === undefined ? [] : [entries];
+}
+
+function isImmuneToDamageType(record, damageType) {
+  return flattenDamageEntries(record.creature.immunities).some((entry) => {
+    const labels = typeof entry === "string"
+      ? entry
+      : isObject(entry)
+        ? [entry.damageType, entry.damageTypes, entry.type, entry.name, entry.target, entry.description, entry.label]
+            .flat(Infinity).filter((value) => typeof value === "string").join(" ")
+        : "";
+    const text = normalizedDamageText(labels);
+    const types = damageTypesInText(text);
+    const universal = /(?:imune|imunidade|immune)/.test(text) && /(?:todo dano|todos os danos|qualquer dano|dano)/.test(text) && !types.length;
+    const explicitUniversal = isObject(entry) && (entry.all === true || entry.type === "all");
+    return universal || explicitUniversal || types.includes(damageType);
+  });
+}
+
+export function calculateTypedDamage(record, amount, damageType, { ignoreRD = false } = {}) {
+  if (!Number.isInteger(amount) || amount < 0) throw new Error("O dano precisa ser um inteiro não negativo.");
+  const canonicalType = DAMAGE_TYPES.find((type) => normalizedDamageText(type) === normalizedDamageText(damageType));
+  if (!canonicalType) throw new Error("Selecione um tipo de dano válido.");
+  const immune = isImmuneToDamageType(record, canonicalType);
+  const stats = computeEffectiveStats(record);
+  const resistanceValues = flattenDamageEntries(record.creature.resistances)
+    .map(parseResistanceEntry)
+    .filter((entry) => entry && (entry.all || entry.types.includes(canonicalType)))
+    .map((entry) => entry.amount);
+  if (stats.rules.includes("resistanceAll10")) resistanceValues.push(10);
+  const resistance = ignoreRD ? 0 : Math.max(0, ...resistanceValues);
+  const applied = immune ? 0 : Math.max(0, amount - resistance);
+  return { amount, damageType: canonicalType, immune, resistance, ignoredResistance: Boolean(ignoreRD),
+    reduced: immune ? amount : Math.min(amount, resistance), applied };
+}
+
+export function applyTypedDamage(record, amount, damageType, options = {}) {
+  const resolution = calculateTypedDamage(record, amount, damageType, options);
+  const next = clone(record);
+  const before = next.runtime.hpCurrent;
+  const after = Math.max(0, before - resolution.applied);
+  next.runtime.hpCurrent = after;
+  const detail = resolution.immune
+    ? "imunidade a " + resolution.damageType + " anulou o dano"
+    : resolution.ignoredResistance ? "RD ignorada"
+      : resolution.resistance > 0 ? "RD " + resolution.resistance + " reduziu " + resolution.reduced + " ponto(s)"
+        : "sem redução por RD";
+  pushHistory(next, "Recebeu " + resolution.amount + " de dano " + resolution.damageType + "; " + resolution.applied + " PV aplicados (" + detail + "; " + before + " → " + after + ").");
+  return { record: next, ...resolution, before, after };
+}
+
+export function getFastHealing(record) {
+  const candidates = [record?.creature?.hp?.fastHealing, record?.creature?.fastHealing,
+    record?.creature?.regeneration?.fastHealing, record?.creature?.regeneration?.amount];
+  for (const value of candidates) {
+    const amount = numericDamageValue(value);
+    if (amount !== null && amount > 0) return amount;
+  }
+  const text = [record?.creature?.features, record?.creature?.abilities, record?.creature?.powers,
+    record?.creature?.specialActions, record?.creature?.reactions, record?.creature?.description, record?.creature?.notes]
+    .map((value) => { try { return typeof value === "string" ? value : JSON.stringify(value ?? ""); } catch { return ""; } }).join(" ");
+  const match = text.match(/cura\s+acelerada(?:\s+(?:de|em))?\s*[:=]?\s*\(?\s*(\d+)/i);
+  return match ? Math.max(0, Math.floor(Number(match[1]))) : 0;
+}
 export function changeResource(record, resourceId, amount) {
   if (!Number.isInteger(amount)) throw new Error("O ajuste do recurso precisa ser um inteiro.");
   const next = clone(record);

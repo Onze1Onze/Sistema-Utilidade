@@ -1,6 +1,6 @@
 # Outro Lado — Painel de Ameaças
 
-Versão 1.3.0. Extensão para Owlbear Rodeo voltada ao gerenciamento privado de fichas de Ameaças de Ordem Paranormal pelo Mestre.
+Versão 1.4.0. Extensão para Owlbear Rodeo voltada ao gerenciamento privado de fichas de Ameaças de Ordem Paranormal pelo Mestre.
 
 ## Instalação
 
@@ -33,7 +33,9 @@ As condições são selecionadas em uma lista com descrição e grupo; clicar ap
 - Bandeja vertical com busca e cartões das ameaças.
 - Criação, importação, edição, duplicação, exclusão e exportação JSON.
 - Validação com caminho do campo e mensagem do formato esperado.
-- Vida atual/máxima, aplicação de dano e cura com limites.
+- Vida atual/máxima com indicação vermelha ao atingir a faixa de Machucado (limite configurado em `creature.hp.woundedAt` ou metade dos PV quando não informado).
+- Dano vindo de rolagens é aplicado diretamente aos PV após seleção de um dos 13 tipos; RD específica e universal é calculada automaticamente, imunidades anulam o dano e a caixa `Ignorar RD` ignora somente reduções, nunca imunidades.
+- Cura Acelerada recebe um botão próprio que cura automaticamente a quantidade configurada; não há campo para digitar valores manuais de dano ou cura.
 - Condições criadas pelo Mestre com modificadores numéricos para Defesa, salvaguardas, sentidos, deslocamento, ataques, dano, atributos e quantidade de dados.
 - Exibição de valor-base e valor modificado; remover uma condição recalcula os valores derivados.
 - Campo JSON `skillTests` com atributo associado, expressão de teste e expressão de dano separadas; a ficha apresenta botões independentes para testar perícias e rolar dano.
@@ -78,3 +80,9 @@ A extensão é estática e não requer etapa de build. As condições predefinid
 O modelo padrão de criação agora segue a estrutura organizada por grupos: `abilities` usa `damageDice`, `dt` e `savingThrow`; `actions` é um objeto com as listas `agredir` e `other`. Cada ação de Agredir possui teste, dano, margem e multiplicador críticos, alcance, efeitos e descrição. O formulário também apresenta essas informações e rolagens separadas na ficha.
 
 Fichas antigas que usam `actions` como array são migradas automaticamente para `actions.other`; as entradas existentes são preservadas. O campo legado `skillTests` continua sendo aceito na importação, mas não aparece no novo modelo padrão.
+
+## Sistema de dano 1.4.0
+
+Os botões de rolagem de ataque, habilidade e dano exibem a ação **Aplicar dano à vida** quando há um resultado de dano. Selecione um tipo (Corte, Impacto, Balístico, Perfurante, Elétrico, Ácido, Frio, Fogo, Energia, Sangue, Conhecimento, Morte ou Medo) e aplique o total rolado. As resistências podem ser descritas como texto (por exemplo, `RD 5 contra Corte e Impacto`) ou objetos (`{"type":"Balístico","amount":8}`). É aplicada a maior RD que corresponda ao tipo, incluindo RD universal de condições. Imunidades anulam o dano mesmo com **Ignorar RD** marcado.
+
+A Cura Acelerada pode ser informada em `creature.hp.fastHealing` como inteiro. Também é reconhecida em características/ações com texto como `Cura Acelerada 10`; nesse caso aparece um botão para curar automaticamente essa quantidade, respeitando o PV máximo.

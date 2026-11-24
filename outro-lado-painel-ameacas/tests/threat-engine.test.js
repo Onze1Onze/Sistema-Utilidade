@@ -3,7 +3,8 @@ import assert from "node:assert/strict";
 import {
   createThreatTemplate, parseDiceExpression, rollDiceExpression, validateThreatPayload,
   normalizeThreatPayload, computeEffectiveStats, addCondition, removeCondition,
-  changeHitPoints, changeResource, exportThreatRecord, adjustDiceCount, pushRollHistory
+  changeHitPoints, changeResource, exportThreatRecord, adjustDiceCount, pushRollHistory,
+  calculateTypedDamage, applyTypedDamage, getFastHealing
 } from "../src/threat-engine.js";
 
 const makeRecord = () => normalizeThreatPayload(createThreatTemplate(), { id: "test-threat" });
@@ -175,4 +176,68 @@ test("criticalMultiplier é validado no formato xN", () => {
   payload.creature.actions.agredir[0].criticalMultiplier = "2x";
   const errors = validateThreatPayload(payload);
   assert.ok(errors.some((item) => item.path === "creature.actions.agredir[0].criticalMultiplier"));
+});
+
+test("dano tipado aplica RD específica antes de descontar PV", () => {
+  const record = makeRecord();
+  record.creature.hp.max = 100;
+  record.runtime.hpCurrent = 100;
+  record.creature.resistances = ["RD 5 contra Corte e Impacto", "Resistência 3 a Fogo"];
+  const result = applyTypedDamage(record, 12, "Corte");
+  assert.equal(result.resistance, 5);
+  assert.equal(result.applied, 7);
+  assert.equal(result.record.runtime.hpCurrent, 93);
+  assert.equal(record.runtime.hpCurrent, 100, "a ficha original não deve ser mutada");
+});
+
+test("dano tipado aceita objetos de RD e a opção Ignorar RD", () => {
+  const record = makeRecord();
+  record.creature.hp.max = 80;
+  record.runtime.hpCurrent = 80;
+  record.creature.resistances = [{ type: "Balístico", amount: 8 }];
+  const normal = calculateTypedDamage(record, 15, "Balístico");
+  const ignored = applyTypedDamage(record, 15, "Balístico", { ignoreRD: true });
+  assert.equal(normal.applied, 7);
+  assert.equal(ignored.resistance, 0);
+  assert.equal(ignored.applied, 15);
+  assert.equal(ignored.record.runtime.hpCurrent, 65);
+});
+
+test("imunidade anula dano mesmo quando Ignorar RD está marcado", () => {
+  const record = makeRecord();
+  record.creature.hp.max = 100;
+  record.runtime.hpCurrent = 100;
+  record.creature.resistances = ["RD 10 a Fogo"];
+  record.creature.immunities = ["Imune a Fogo"];
+  const result = applyTypedDamage(record, 20, "Fogo", { ignoreRD: true });
+  assert.equal(result.immune, true);
+  assert.equal(result.applied, 0);
+  assert.equal(result.record.runtime.hpCurrent, 100);
+});
+
+test("RD universal de condição reduz dano de qualquer tipo, salvo ao ignorar RD", () => {
+  const record = makeRecord();
+  record.creature.hp.max = 100;
+  record.runtime.hpCurrent = 100;
+  record.runtime.conditions = [{ id: "rd-universal", name: "Proteção", modifiers: {}, rules: ["resistanceAll10"] }];
+  assert.equal(calculateTypedDamage(record, 17, "Medo").applied, 7);
+  assert.equal(calculateTypedDamage(record, 17, "Medo", { ignoreRD: true }).applied, 17);
+});
+
+test("Cura Acelerada é identificada por campo estruturado ou característica textual", () => {
+  const record = makeRecord();
+  assert.equal(getFastHealing(record), 0);
+  record.creature.hp.fastHealing = 8;
+  assert.equal(getFastHealing(record), 8);
+  record.creature.hp.fastHealing = null;
+  record.creature.features = [{ name: "Cura Acelerada 12" }];
+  assert.equal(getFastHealing(record), 12);
+});
+
+test("Cura Acelerada é aplicada sem ultrapassar PV máximos", () => {
+  const record = makeRecord();
+  record.creature.hp.max = 30;
+  record.runtime.hpCurrent = 27;
+  const healed = changeHitPoints(record, 8, "heal");
+  assert.equal(healed.runtime.hpCurrent, 30);
 });
