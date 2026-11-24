@@ -333,3 +333,13 @@ button:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-vis
 .incoming-damage-amount:hover{background:#f3e7e4;border-color:#7d2929}
 .incoming-damage-footnote{margin:9px 0 0;font:9px/1.4 var(--sans);color:#777168}
 @media(max-width:520px){.damage-type-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.incoming-damage-grid{grid-template-columns:repeat(3,minmax(0,1fr))}.incoming-damage-modal .modal-content{padding:12px}}
+
+.heal-life-btn{border-color:#6d8a67!important;color:#315b35!important}
+.heal-life-modal{width:min(520px,100%)}
+.heal-life-hint{margin:0 0 10px;font:11px/1.45 var(--sans);color:#59564f}
+.heal-life-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:6px}
+.heal-life-amount{min-height:36px;border:1px solid #9cab91;background:#f0f4ed;color:#315b35;font:900 11px var(--sans)}
+.heal-life-amount:hover{background:#e4eddf;border-color:#567b4d}
+.heal-life-full{width:100%;min-height:38px;margin-top:9px;border:1px solid #567b4d;background:#315b35;color:white;font:800 10px var(--sans);letter-spacing:.04em;text-transform:uppercase}
+.heal-life-full:disabled{opacity:.45;cursor:not-allowed}
+@media(max-width:520px){.heal-life-grid{grid-template-columns:repeat(3,minmax(0,1fr))}}

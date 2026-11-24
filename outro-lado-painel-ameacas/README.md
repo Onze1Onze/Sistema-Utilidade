@@ -1,6 +1,6 @@
 # Outro Lado — Painel de Ameaças
 
-Versão 1.4.1. Extensão para Owlbear Rodeo voltada ao gerenciamento privado de fichas de Ameaças de Ordem Paranormal pelo Mestre.
+Versão 1.4.2. Extensão para Owlbear Rodeo voltada ao gerenciamento privado de fichas de Ameaças de Ordem Paranormal pelo Mestre.
 
 ## Instalação
 
@@ -35,7 +35,7 @@ As condições são selecionadas em uma lista com descrição e grupo; clicar ap
 - Validação com caminho do campo e mensagem do formato esperado.
 - Vida atual/máxima com indicação vermelha ao atingir a faixa de Machucado (limite configurado em `creature.hp.woundedAt` ou metade dos PV quando não informado).
 - Rolagens de ataques e habilidades mostram apenas o dano que a ameaça causa aos jogadores; elas nunca alteram os PV da própria ameaça. Para ferir a ameaça, use separadamente o botão `Receber dano`, escolha um dos 13 tipos e clique em um valor predefinido. RD e imunidades são calculadas automaticamente; `Ignorar RD` ignora somente reduções, nunca imunidades.
-- Cura Acelerada recebe um botão próprio que cura automaticamente a quantidade configurada; não há campo para digitar valores manuais de dano ou cura.
+- O botão **Curar vida** abre valores de cura predefinidos e uma opção para restaurar todos os PV; a quantidade efetiva é limitada aos PV máximos. Cura Acelerada continua em um botão próprio e independente.
 - Condições criadas pelo Mestre com modificadores numéricos para Defesa, salvaguardas, sentidos, deslocamento, ataques, dano, atributos e quantidade de dados.
 - Exibição de valor-base e valor modificado; remover uma condição recalcula os valores derivados.
 - Campo JSON `skillTests` com atributo associado, expressão de teste e expressão de dano separadas; a ficha apresenta botões independentes para testar perícias e rolar dano.
@@ -88,3 +88,7 @@ A rolagem de dano de ataques, habilidades e ações da ameaça representa dano c
 Para aplicar dano recebido pela própria ameaça, use o botão independente **Receber dano** na área de Pontos de Vida. Selecione o tipo de dano e um dos valores predefinidos. Cada clique aplica uma instância de dano, calcula a RD correspondente e respeita imunidades. A opção **Ignorar RD** ignora reduções, mas não imunidades.
 
 A Cura Acelerada permanece em um botão separado e recupera automaticamente a quantidade configurada, respeitando o PV máximo.
+
+## Cura manual 1.4.2
+
+O botão **Curar vida** na área de PV abre uma grade de valores predefinidos (+1, +2, +3, +4, +5, +6, +8, +10, +12, +15, +20, +25, +30, +40 e +50) e a opção **Restaurar todos os PV**. A cura é aplicada somente à própria ameaça, não aceita valores digitados e nunca ultrapassa a vida máxima. **Cura Acelerada** permanece como uma ação separada.

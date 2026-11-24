@@ -42,3 +42,21 @@ test("dano recebido pela ameaça tem uma ação independente com tipos e valores
   assert.ok(main.includes("const presets = [1, 2, 3, 4, 5, 6, 8, 10, 12, 15, 20, 25, 30, 40, 50]"));
   assert.ok(!main.includes('id="hp-amount"'));
 });
+
+test("cura manual da ameaça tem botão independente e apenas valores predefinidos", () => {
+  assert.ok(main.includes('data-action="open-heal"'));
+  assert.ok(main.includes('data-action="apply-healing"'));
+  assert.ok(main.includes('data-action="heal-to-full"'));
+  assert.ok(main.includes('const presets = [1, 2, 3, 4, 5, 6, 8, 10, 12, 15, 20, 25, 30, 40, 50]'));
+  assert.ok(main.includes('changeHitPoints(record, amount, "heal")'));
+  assert.ok(main.includes('changeHitPoints(record, missing, "heal")'));
+  assert.ok(!main.includes('id="hp-amount"'));
+});
+
+test("a janela de cura não aparece nem interfere no resultado de dano que a ameaça rola", () => {
+  const rollStart = main.indexOf('if (modal.type === "roll") {');
+  const rollEnd = main.indexOf('  return "";', rollStart);
+  const rollPanel = main.slice(rollStart, rollEnd);
+  assert.doesNotMatch(rollPanel, /open-heal|apply-healing|heal-to-full/);
+  assert.ok(main.includes('if (action === "open-heal" && record)'));
+});
